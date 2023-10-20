@@ -1,5 +1,10 @@
 # MuadDib: Beyond Mentalic - A Machine Learning Framework
 
+# WORK IN PROGRESS
+Based from the work development for a master thesis, which can be seen here: https://github.com/JotaFan/renewable-generation-into-reserve-markets/tree/main
+
+
+
 MuadDib is not just a machine learning framework; it's a Mentalic framework, designed to transcend the ordinary and empower data scientists, analysts, and researchers with unprecedented capabilities. Named after the enigmatic and visionary character from the iconic Dune series, MuadDib is your gateway to a new dimension in data science.
 
 **Key Features:**
