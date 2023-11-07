@@ -19,8 +19,8 @@ class SpiceEyes:
         train_fn=None,
         keras_backend="torch",
     ):
-        callbacks=callbacks or [],
-        metrics=metrics or ["root_mean_squared_error"],
+        callbacks = callbacks or []
+        metrics = metrics or ["root_mean_squared_error"]
 
         self.name = name
         self.work_folder = work_folder
@@ -265,7 +265,7 @@ class Experiment(SpiceEyes):
                 train_fn=self.train_fn,
             )
             case_list.append(case_obj)
-            self.complete = self.complete & case_obj.complete 
+            self.complete = self.complete & case_obj.complete
 
         # if weight:
         #     if "delta_mean" in  weight or "both" in weight:

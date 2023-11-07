@@ -61,11 +61,13 @@ def init(args):
 def process_data(args):
     pass
 
+
 def process_models(args):
     pass
 
+
 def train(args, train_model=None):
-    #TODO: REFACTOR!
+    # TODO: REFACTOR!
     if train_model is None:
         print("normal triaing")
         train_script_path = os.path.join(MODEL_SCRIPTS_DIR, "train_model.py")
@@ -80,7 +82,6 @@ def train(args, train_model=None):
         if k not in ["logconf", "command", "case"]
     }
     train_model(**params)
-
 
 
 def train_case(args):
@@ -117,6 +118,9 @@ def experiment(args):
 
             case_name = str(case_obj.name)
 
-            command = f"KERAS_BACKEND={case_obj.keras_backend} muaddib train_case --experiment={experiment_name} --case={case_name}"
+            command = (
+                f"KERAS_BACKEND={case_obj.keras_backend}"
+                f" muaddib train_case --experiment={experiment_name} --case={case_name}"
+            )
 
             open_new_console(command)
