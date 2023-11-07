@@ -48,12 +48,7 @@ def startup(env_file=".env"):
         DATA_FOLDER = os.path.join(PROJECT_FOLDER, "data")
     os.environ["DATA_FOLDER"] = DATA_FOLDER
 
-
-
-
     sys.path.append(SCRIPTS_FOLDER)
 
     KERAS_BACKEND = os.getenv("KERAS_BACKEND", "torch")
     os.environ["KERAS_BACKEND"] = KERAS_BACKEND
-
-
