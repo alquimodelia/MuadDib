@@ -4,6 +4,11 @@ import inspect
 import json
 import os
 
+import mlflow
+from mlflow import MlflowClient
+
+client = MlflowClient(tracking_uri="http://127.0.0.1:8080")
+
 
 class SpiceEyes:
     def __init__(
@@ -45,6 +50,7 @@ class Case(SpiceEyes):
         freq_saves="freq_saves",
         model_types=".keras",
         model_conf_name="model_conf.json",
+        experiment_name="",
         **kwargs,
     ):
         self.case_name = case_name
@@ -54,6 +60,7 @@ class Case(SpiceEyes):
         self.freq_saves = freq_saves
         self.model_types = model_types
         self.model_conf_name = model_conf_name
+        self.experiment_name = experiment_name
 
         super().__init__(work_folder=work_folder, **kwargs)
         self.setup()
@@ -153,24 +160,82 @@ class Case(SpiceEyes):
 
         self.fit_args = fit_args
 
+    def set_mlflow(self):
+        # Sets the current active experiment to the "Apple_Models" experiment and
+        # returns the Experiment metadata
+        # experiment = mlflow.set_experiment(self.experiment_name)
+        mlflow.set_experiment(self.experiment_name)
+
+        # Define a run name for this iteration of training.
+        # If this is not set, a unique name will be auto-generated for your run.
+
     def train_model(self):
         if self.complete:
             return
+        # if os.getenv("MLFLOW_STATE")=="on":
+        # if True:
+
+        #     from mlflow import MlflowClient
+        #     client = MlflowClient(tracking_uri="http://127.0.0.1:8080")
+
+        # Start a new MLflow run
+        mlflow.set_tracking_uri("http://127.0.0.1:8080")
+
+        self.set_mlflow()
+        run = mlflow.start_run(run_name=self.name)
+        mlflow_callback = mlflow.keras_core.MLflowCallback(run)
+        if mlflow_callback not in self.fit_args["callbacks"]:
+            self.fit_args["callbacks"].append(mlflow_callback)
+
         self.train_fn(
             self.model,
             fit_args=self.fit_args,
             compile_args=self.compile_args,
             model_name=self.name,
         )
+        # End the MLflow run
+        mlflow.end_run()
 
 
 class Experiment(SpiceEyes):
-    def __init__(self, name, work_folder, models_dict=None, **kwargs):
+    def __init__(
+        self,
+        name,
+        work_folder,
+        models_dict=None,
+        description="",
+        experiment_tags=None,
+        **kwargs,
+    ):
         self.models_dict = models_dict
 
         super().__init__(name=name, work_folder=work_folder, **kwargs)
+        self.description = description
+        self.set_tags(experiment_tags)
+        self.set_mlflow_experiment()
         self.setup()
         self.experiment_configuration(models_dict)
+
+    def set_tags(self, experiment_tags=None):
+        experiment_tags = experiment_tags or {}
+        default_tags = {
+            "project_name": os.getenv("PROJECT_NAME", "muaddib_project"),
+            "mlflow.note.content": self.description,
+        }
+
+        default_tags.update(experiment_tags)
+        self.experiment_tags = default_tags
+
+    def set_mlflow_experiment(self):
+        mlflow_experiment = client.search_experiments(
+            filter_string="name = '{0}'".format(self.name)
+        )
+        if len(mlflow_experiment) > 0:
+            self.mlflow_experiment = mlflow_experiment[0]
+        else:
+            self.mlflow_experiment = client.create_experiment(
+                name=self.name, tags=self.experiment_tags
+            )
 
     def setup(
         self,
@@ -248,6 +313,7 @@ class Experiment(SpiceEyes):
                         name=None,
                         work_folder=self.case_work_path,
                         train_fn=self.train_fn,
+                        experiment_name=self.name,
                     )
                     case_list.append(case_obj)
                     self.complete = self.complete & case_obj.complete
@@ -263,6 +329,7 @@ class Experiment(SpiceEyes):
                 name=None,
                 work_folder=self.case_work_path,
                 train_fn=self.train_fn,
+                experiment_name=self.name,
             )
             case_list.append(case_obj)
             self.complete = self.complete & case_obj.complete
@@ -282,9 +349,11 @@ class Experiment(SpiceEyes):
 
     def experiment_configuration(self, models_dict=None, **kwargs):
         models_dict = models_dict or self.models_dict
-
+        self.conf = []
         for model_name, model in models_dict.items():
-            self.conf = self.case_configuration(
+            case_conf_list = self.case_configuration(
                 model_name=model_name, model=model, **kwargs
             )
+            for case_conf in case_conf_list:
+                self.conf.append(case_conf)
         return self.conf
