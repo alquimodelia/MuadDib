@@ -52,3 +52,32 @@ def startup(env_file=".env"):
 
     KERAS_BACKEND = os.getenv("KERAS_BACKEND", "torch")
     os.environ["KERAS_BACKEND"] = KERAS_BACKEND
+
+    MLFLOW_ADRESS = os.getenv("MLFLOW_ADRESS", None)
+    MLFLOW_PORT = os.getenv("MLFLOW_PORT", None)
+
+    # Set the MLFLOW_TRACKING_URI environment variable
+    os.environ["MLFLOW_TRACKING_URI"] = str(
+        PROJECT_FOLDER.joinpath("mlruns").as_uri()
+    )
+
+    MLFLOW_STATE = os.getenv("MLFLOW_STATE", "off")
+    os.environ["MLFLOW_STATE"] = MLFLOW_STATE
+    if MLFLOW_ADRESS is not None:
+        if MLFLOW_PORT is not None:
+            mlflow_startup(host=MLFLOW_ADRESS, port=MLFLOW_PORT)
+            os.environ["MLFLOW_STATE"] = "on"
+
+
+def mlflow_startup(host="127.0.0.1", port="8080"):
+    # import mlflow
+    # uri = "http://{host}:{port}"
+    # mlflow.set_tracking_uri(uri)
+    # try:
+    #     experiments = mlflow.list_experiments()
+    #     print("MLflow server is running.")
+    # except Exception as e:
+    #     print("MLflow server is not running.")
+    #     command = f"mlflow server --host {host} --port {port}"
+    #     subprocess.Popen(command, shell=True)
+    pass

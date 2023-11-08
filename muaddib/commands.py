@@ -106,16 +106,17 @@ def experiment(args):
     from experiments.experiment import experiments_list
 
     for exp in experiments_list:
+        print("-------------------------------------------------------------")
+        experiment_name = exp.name
+        print(f"Experiment {experiment_name}")
         if exp.complete:
             continue
-        experiment_name = exp.name
         if name is not None:
             if name != experiment_name:
                 continue
         for case_obj in exp.conf:
             if case_obj.complete:
                 continue
-
             case_name = str(case_obj.name)
 
             command = (
