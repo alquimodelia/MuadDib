@@ -91,12 +91,13 @@ def train_case(args):
 
     experiment_name = args.experiment
     case_name = args.case
-
+    # TODO: add a dict thingy yo this
     exp = [f for f in experiments_list if f.name == experiment_name][0]
     case_obj = [f for f in exp.conf if f.name == case_name][0]
-    print("-------------------------------------------------------------")
-    print(f"Training Model:{case_name}. On experiment {experiment_name}")
-    case_obj.train_model()
+    if not case_obj.complete:
+        print("-------------------------------------------------------------")
+        print(f"Training Model:{case_name}. On experiment {experiment_name}")
+        case_obj.train_model()
 
 
 def experiment(args):
@@ -109,19 +110,21 @@ def experiment(args):
         print("-------------------------------------------------------------")
         experiment_name = exp.name
         print(f"Experiment {experiment_name}")
-        if exp.complete:
-            continue
+        # if exp.complete:
+        # continue
         if name is not None:
             if name != experiment_name:
                 continue
         for case_obj in exp.conf:
-            if case_obj.complete:
-                continue
-            case_name = str(case_obj.name)
+            if not case_obj.complete:
+                case_name = str(case_obj.name)
 
-            command = (
-                f"KERAS_BACKEND={case_obj.keras_backend}"
-                f" muaddib train_case --experiment={experiment_name} --case={case_name}"
-            )
+                command = (
+                    f"KERAS_BACKEND={case_obj.keras_backend}"
+                    f" muaddib train_case --experiment={experiment_name} --case={case_name}"
+                )
 
-            open_new_console(command)
+                open_new_console(command)
+            case_obj.validate_model()
+
+        exp.validate_experiment()

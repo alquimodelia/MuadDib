@@ -22,6 +22,7 @@ class SpiceEyes:
         callbacks=None,
         metrics=None,
         train_fn=None,
+        validation_fn=None,
         keras_backend="torch",
     ):
         callbacks = callbacks or []
@@ -36,8 +37,20 @@ class SpiceEyes:
         self.loss = loss
         self.metrics = metrics
         self.train_fn = train_fn
+        self.validation_fn = validation_fn
         self.keras_backend = keras_backend
         self.complete = False
+        self.predict_score = {}
+
+    def set_predict_score(self, new_predict_score):
+        for key in new_predict_score.keys():
+            value = new_predict_score[key]
+            if not isinstance(value, list):
+                value = [value]
+            if key not in self.predict_score:
+                self.predict_score[key] = value
+            else:
+                self.predict_score[key] += value
 
 
 class Case(SpiceEyes):
@@ -90,6 +103,7 @@ class Case(SpiceEyes):
         # Checks how many epochs were trained
         list_query = f"{self.case_work_frequency_path}/**{self.model_types}"
         list_freq_saves = glob.glob(list_query)
+        self.list_freq_saves = list_freq_saves
         last_epoch = 0
         last_epoch_path = None
         if len(list_freq_saves) > 0:
@@ -195,6 +209,75 @@ class Case(SpiceEyes):
         )
         # End the MLflow run
         mlflow.end_run()
+
+    def validate_model(self):
+        for freq_save in self.list_freq_saves:
+            epoch = int(
+                os.path.basename(freq_save).replace(self.model_types, "")
+            )
+
+            prediction_path = freq_save.replace(
+                "freq_saves", "freq_predictions"
+            ).replace(".keras", ".npz")
+            score_path = freq_save.replace(
+                "freq_saves", "freq_predictions"
+            ).replace(".keras", ".json")
+
+            bool_prediction = os.path.exists(prediction_path)
+            bool_score = os.path.exists(score_path)
+            validation_done = bool_prediction & bool_score
+            if not validation_done:
+                predict_score = self.validation_fn(
+                    model_path=freq_save, model_name=self.name, epoch=epoch
+                )
+            else:
+                if bool_score:
+                    with open(score_path) as f:
+                        predict_score = json.load(f)
+            self.set_predict_score(predict_score)
+        self.write_report()
+        if not self.complete:
+            return
+
+    def write_report(self):
+        import pandas as pd
+
+        # TODO: change this path thingys
+        case_report_path = self.case_work_path.replace(
+            "experiments", "reports"
+        )
+        os.makedirs(case_report_path, exist_ok=True)
+
+        case_results = pd.DataFrame(self.predict_score)
+
+        COLUMN_TO_SORT_BY = "bscore"
+        ascending_to_sort = False
+        # All results, ordered by epoch
+        case_results.sort_values(by="epoch", inplace=True)
+        path_schema_csv = os.path.join(case_report_path, "case_results.csv")
+        path_schema_tex = os.path.join(case_report_path, "case_results.tex")
+        case_results.sort_values(
+            by=COLUMN_TO_SORT_BY, ascending=ascending_to_sort, inplace=True
+        )
+        if len(case_results) > 10:
+            case_results_sort = pd.concat(
+                [case_results.head(), case_results.tail()]
+            )
+            case_results_sort.to_csv(path_schema_csv, index=False)
+            case_results_sort.to_latex(
+                path_schema_tex, escape=False, index=False, float_format="%.2f"
+            )
+            path_schema_csv = os.path.join(
+                case_report_path, "case_results_complete.csv"
+            )
+            path_schema_tex = os.path.join(
+                case_report_path, "case_results_complete.tex"
+            )
+
+        case_results.to_csv(path_schema_csv, index=False)
+        case_results.to_latex(
+            path_schema_tex, escape=False, index=False, float_format="%.2f"
+        )
 
 
 class Experiment(SpiceEyes):
@@ -313,10 +396,12 @@ class Experiment(SpiceEyes):
                         name=None,
                         work_folder=self.case_work_path,
                         train_fn=self.train_fn,
+                        validation_fn=self.validation_fn,
                         experiment_name=self.name,
                     )
                     case_list.append(case_obj)
                     self.complete = self.complete & case_obj.complete
+                    self.set_predict_score(case_obj.predict_score)
         if len(case_list) == 0:
             # If the value is not a list, create a Case object with the value
             case_obj = Case(
@@ -329,10 +414,12 @@ class Experiment(SpiceEyes):
                 name=None,
                 work_folder=self.case_work_path,
                 train_fn=self.train_fn,
+                validation_fn=self.validation_fn,
                 experiment_name=self.name,
             )
             case_list.append(case_obj)
             self.complete = self.complete & case_obj.complete
+            self.set_predict_score(case_obj.predict_score)
 
         # if weight:
         #     if "delta_mean" in  weight or "both" in weight:
@@ -357,3 +444,126 @@ class Experiment(SpiceEyes):
             for case_conf in case_conf_list:
                 self.conf.append(case_conf)
         return self.conf
+
+    def validate_experiment(self):
+        for case_obj in self.conf:
+            self.set_predict_score(case_obj.predict_score)
+        self.write_report()
+
+    def write_report(self):
+        import pandas as pd
+
+        # TODO: change this path thingys
+        case_report_path = self.case_work_path.replace(
+            "experiments", "reports"
+        )
+        os.makedirs(case_report_path, exist_ok=True)
+
+        case_results = pd.DataFrame(self.predict_score)
+
+        COLUMN_TO_SORT_BY = "bscore"
+        ascending_to_sort = False
+        # All results, ordered by epoch
+        path_schema_csv = os.path.join(
+            case_report_path, "experiment_results.csv"
+        )
+        path_schema_tex = os.path.join(
+            case_report_path, "experiment_results.tex"
+        )
+        case_results.sort_values(
+            by=COLUMN_TO_SORT_BY, ascending=ascending_to_sort, inplace=True
+        )
+        if len(case_results) > 10:
+            case_results_sort = pd.concat(
+                [case_results.head(), case_results.tail()]
+            )
+            case_results_sort.to_csv(path_schema_csv, index=False)
+            case_results_sort.to_latex(
+                path_schema_tex, escape=False, index=False, float_format="%.2f"
+            )
+            path_schema_csv = os.path.join(
+                case_report_path, "experiment_results_complete.csv"
+            )
+            path_schema_tex = os.path.join(
+                case_report_path, "experiment_results_complete.tex"
+            )
+
+        case_results.to_csv(path_schema_csv, index=False)
+        case_results.to_latex(
+            path_schema_tex, escape=False, index=False, float_format="%.2f"
+        )
+
+        # Sort the DataFrame by "optimal percentage" column in descending order
+        case_results.sort_values(
+            by=COLUMN_TO_SORT_BY, ascending=False, inplace=True
+        )
+
+        # Get the best score for each unique value in the "name" column
+        best_scores = case_results.loc[
+            case_results.groupby("name").idxmax()[COLUMN_TO_SORT_BY]
+        ].sort_values(by=COLUMN_TO_SORT_BY, ascending=ascending_to_sort)
+
+        path_schema_tex = os.path.join(
+            case_report_path, "experiment_results_best_of_each.tex"
+        )
+
+        best_scores.to_latex(
+            path_schema_tex, escape=False, index=False, float_format="%.2f"
+        )
+
+        # Get the 2nd and 3rd best scores for each unique value in the "name" column
+        if ascending_to_sort is False:
+            second_third_best_scores = case_results.groupby("name").apply(
+                lambda x: x.nlargest(3, COLUMN_TO_SORT_BY)
+            )
+        else:
+            second_third_best_scores = case_results.groupby("name").apply(
+                lambda x: x.nsmallest(3, COLUMN_TO_SORT_BY)
+            )
+
+        second_third_best_scores.sort_values(
+            by=COLUMN_TO_SORT_BY, ascending=ascending_to_sort, inplace=True
+        )
+
+        path_schema_tex = os.path.join(
+            case_report_path, "experiment_results_best3.tex"
+        )
+
+        second_third_best_scores.to_latex(
+            path_schema_tex, escape=False, index=False, float_format="%.2f"
+        )
+
+        no_missin_scores = case_results[case_results["bscore m"] >= 0]
+        no_missin_scores = no_missin_scores[no_missin_scores["bscore s"] >= 0]
+        no_missin_scores = no_missin_scores.dropna().sort_values(
+            by="bscore", ascending=False
+        )
+
+        path_schema_tex = os.path.join(
+            case_report_path, "experiment_results_best_under_benchmark.tex"
+        )
+
+        no_missin_scores.head(10).to_latex(
+            path_schema_tex, escape=False, index=False, float_format="%.2f"
+        )
+
+        if ascending_to_sort is False:
+            no_missin_scores = no_missin_scores.groupby("name").apply(
+                lambda x: x.nlargest(3, COLUMN_TO_SORT_BY)
+            )
+        else:
+            no_missin_scores = no_missin_scores.groupby("name").apply(
+                lambda x: x.nsmallest(3, COLUMN_TO_SORT_BY)
+            )
+
+        no_missin_scores.sort_values(
+            by="bscore", ascending=False, inplace=True
+        )
+
+        path_schema_tex = os.path.join(
+            case_report_path, "experiment_results_best3_under_benchmark.tex"
+        )
+
+        no_missin_scores.to_latex(
+            path_schema_tex, escape=False, index=False, float_format="%.2f"
+        )
