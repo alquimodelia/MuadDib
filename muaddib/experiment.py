@@ -23,7 +23,9 @@ class SpiceEyes:
         metrics=None,
         train_fn=None,
         validation_fn=None,
+        visualize_report_fn=None,
         keras_backend="torch",
+        benchmark_score_file=None,
     ):
         callbacks = callbacks or []
         metrics = metrics or ["root_mean_squared_error"]
@@ -38,9 +40,12 @@ class SpiceEyes:
         self.metrics = metrics
         self.train_fn = train_fn
         self.validation_fn = validation_fn
+        self.visualize_report_fn = visualize_report_fn
         self.keras_backend = keras_backend
         self.complete = False
         self.predict_score = {}
+        self.benchmark_score_file = benchmark_score_file
+        self.worthy_models = None
 
     def set_predict_score(self, new_predict_score):
         for key in new_predict_score.keys():
@@ -211,6 +216,8 @@ class Case(SpiceEyes):
         mlflow.end_run()
 
     def validate_model(self):
+        if len(self.list_freq_saves) == 0:
+            self.setup()
         for freq_save in self.list_freq_saves:
             epoch = int(
                 os.path.basename(freq_save).replace(self.model_types, "")
@@ -234,6 +241,8 @@ class Case(SpiceEyes):
                 if bool_score:
                     with open(score_path) as f:
                         predict_score = json.load(f)
+            if self.case_name:
+                predict_score["case"] = self.case_name
             self.set_predict_score(predict_score)
         self.write_report()
         if not self.complete:
@@ -382,7 +391,9 @@ class Experiment(SpiceEyes):
                     else:
                         case_name = v.name
                         # Just the 1st letter of each word
-                        case_name = [f[0] for f in case_name.split("_")]
+                        case_name = "".join(
+                            [f[0] for f in case_name.split("_")]
+                        )
                     # Create a Case object for each entry in the list
                     case_obj = Case(
                         **{key: v},
@@ -435,14 +446,17 @@ class Experiment(SpiceEyes):
         return case_list
 
     def experiment_configuration(self, models_dict=None, **kwargs):
+        # TODO: REMOVE list in future and use only the dict base thingy, maybe change name
         models_dict = models_dict or self.models_dict
         self.conf = []
+        self.study_cases = {}
         for model_name, model in models_dict.items():
             case_conf_list = self.case_configuration(
                 model_name=model_name, model=model, **kwargs
             )
-            for case_conf in case_conf_list:
-                self.conf.append(case_conf)
+            for case_obj in case_conf_list:
+                self.conf.append(case_obj)
+                self.study_cases[case_obj.name] = case_obj
         return self.conf
 
     def validate_experiment(self):
@@ -450,6 +464,7 @@ class Experiment(SpiceEyes):
             self.set_predict_score(case_obj.predict_score)
         self.write_report()
 
+    # TODO: change all this mess of report writing
     def write_report(self):
         import pandas as pd
 
@@ -540,13 +555,24 @@ class Experiment(SpiceEyes):
         )
 
         path_schema_tex = os.path.join(
-            case_report_path, "experiment_results_best_under_benchmark.tex"
+            case_report_path, "experiment_results_best_10_under_benchmark.tex"
         )
 
         no_missin_scores.head(10).to_latex(
             path_schema_tex, escape=False, index=False, float_format="%.2f"
         )
 
+        path_schema_tex = os.path.join(
+            case_report_path, "experiment_results_best_under_benchmark.tex"
+        )
+
+        no_missin_scores.to_latex(
+            path_schema_tex, escape=False, index=False, float_format="%.2f"
+        )
+        unique_values_list = no_missin_scores["name"].unique().tolist()
+        print("----------------------------------------------------")
+        print("Worthy models are: ", unique_values_list)
+        self.worthy_models = unique_values_list
         if ascending_to_sort is False:
             no_missin_scores = no_missin_scores.groupby("name").apply(
                 lambda x: x.nlargest(3, COLUMN_TO_SORT_BY)
@@ -566,4 +592,68 @@ class Experiment(SpiceEyes):
 
         no_missin_scores.to_latex(
             path_schema_tex, escape=False, index=False, float_format="%.2f"
+        )
+
+    def visualize_report(self):
+        # TODO: change this path thingys
+        folder_figures = self.case_work_path.replace("experiments", "reports")
+        # TODO: get this from an envi
+        metrics_to_check = None
+        benchmark_score = {}
+
+        if os.path.exists(self.benchmark_score_file):
+            with open(self.benchmark_score_file) as f:
+                benchmark_score = json.load(f)
+
+        figure_name = "experiment_results.png"
+        self.visualize_report_fn(
+            self.predict_score,
+            metrics_to_check=metrics_to_check,
+            benchmark_score=benchmark_score,
+            folder_figures=folder_figures,
+            figure_name=figure_name,
+        )
+
+        self.visualize_report_fn(
+            self.predict_score,
+            metrics_to_check=metrics_to_check,
+            benchmark_score=benchmark_score,
+            folder_figures=folder_figures,
+            figure_name=figure_name,
+            limit_by="outliers",
+        )
+        self.visualize_report_fn(
+            self.predict_score,
+            metrics_to_check=metrics_to_check,
+            benchmark_score=benchmark_score,
+            folder_figures=folder_figures,
+            figure_name=figure_name,
+            limit_by="benchmark",
+        )
+
+        metrics_to_check = ["alloc missing", "alloc surplus"]
+        figure_name = "experiment_results_redux.png"
+        self.visualize_report_fn(
+            self.predict_score,
+            metrics_to_check=metrics_to_check,
+            benchmark_score=benchmark_score,
+            folder_figures=folder_figures,
+            figure_name=figure_name,
+        )
+
+        self.visualize_report_fn(
+            self.predict_score,
+            metrics_to_check=metrics_to_check,
+            benchmark_score=benchmark_score,
+            folder_figures=folder_figures,
+            figure_name=figure_name,
+            limit_by="outliers",
+        )
+        self.visualize_report_fn(
+            self.predict_score,
+            metrics_to_check=metrics_to_check,
+            benchmark_score=benchmark_score,
+            folder_figures=folder_figures,
+            figure_name=figure_name,
+            limit_by="benchmark",
         )

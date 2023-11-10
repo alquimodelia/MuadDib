@@ -66,6 +66,9 @@ def process_models(args):
     pass
 
 
+# TODO: Create reporting command, using the validations
+
+
 def train(args, train_model=None):
     # TODO: REFACTOR!
     if train_model is None:
@@ -86,14 +89,14 @@ def train(args, train_model=None):
 
 def train_case(args):
     start(args)
-
-    from experiments.experiment import experiments_list
+    # TODO: handle this multiple imports
+    from experiments.experiment import experiments_dict
 
     experiment_name = args.experiment
     case_name = args.case
-    # TODO: add a dict thingy yo this
-    exp = [f for f in experiments_list if f.name == experiment_name][0]
-    case_obj = [f for f in exp.conf if f.name == case_name][0]
+    exp = experiments_dict[experiment_name]
+
+    case_obj = exp.study_cases[case_name]
     if not case_obj.complete:
         print("-------------------------------------------------------------")
         print(f"Training Model:{case_name}. On experiment {experiment_name}")
@@ -128,3 +131,4 @@ def experiment(args):
             case_obj.validate_model()
 
         exp.validate_experiment()
+        exp.visualize_report()
