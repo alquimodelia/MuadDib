@@ -53,6 +53,14 @@ def startup(env_file=".env"):
     KERAS_BACKEND = os.getenv("KERAS_BACKEND", "torch")
     os.environ["KERAS_BACKEND"] = KERAS_BACKEND
 
+    RAW_FILE_NAME = os.getenv("RAW_FILE_NAME")
+    RAW_FILE_PATH = os.path.join(DATA_FOLDER, "raw", RAW_FILE_NAME)
+
+    PROCESSED_FILE_NAME = os.getenv("PROCESSED_FILE_NAME")
+    PROCESSED_FILE_PATH = os.path.join(
+        DATA_FOLDER, "processed", PROCESSED_FILE_NAME
+    )
+
     MLFLOW_ADRESS = os.getenv("MLFLOW_ADRESS", None)
     MLFLOW_PORT = os.getenv("MLFLOW_PORT", None)
 
