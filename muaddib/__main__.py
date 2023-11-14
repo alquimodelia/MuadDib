@@ -36,8 +36,15 @@ def get_arg_parser():
 
     subparsers = parser.add_subparsers(dest="command", help="sub-command help")
 
-    parser_new = subparsers.add_parser("new", help="new help")
-    parser_new.add_argument("project_name", help="Name of the project")
+    parser_new = subparsers.add_parser(
+        "new", help="Create a new project based on a template"
+    )
+    parser_new.add_argument(
+        "--template_name",
+        choices=["mentalic", "renewable-energy-allocation"],
+        help="Name of the template to use for the new project",
+    )
+    parser_new.add_argument("project_name", help="Name of the new project")
 
     parser_train = subparsers.add_parser("train", help="start help")
     parser_train.add_argument("--model_to_train", help="Model to train")
