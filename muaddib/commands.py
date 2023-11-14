@@ -1,8 +1,11 @@
 import os
 import subprocess
 import sys
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from cookiecutter.main import cookiecutter
+from cookiecutter.repository import determine_repo_dir
 
 from muaddib.utils import startup
 
@@ -28,23 +31,38 @@ def open_new_console(command):
 
 
 def new(args):
-    # TODO: redo to use cookicutter from arrakis-cookicutter
-    cookiecutter_file = os.path.join(PROJECT_COOKICUTTER, "cookiecutter.json")
-
-    if not os.path.exists(PROJECT_COOKICUTTER):
-        print(f"Template directory not found: {PROJECT_COOKICUTTER}")
-        return
-
-    if not os.path.exists(cookiecutter_file):
-        print(f"cookiecutter.json not found in: {PROJECT_COOKICUTTER}")
-        return
-
-    project_path = cookiecutter(
-        template=PROJECT_COOKICUTTER,
-        no_input=True,
-        extra_context={"project_name": args.project_name},
+    TEMPLATE_TO_BUILD = (
+        "https://github.com/alquimodelia/arrakis-coockiecutter.git"
     )
-    print(f"Creating new project: {args.project_name}")
+    directory = (
+        args.template_name
+    )  # specify the directory inside the repository
+    checkout = (
+        None  # specify the tag, branch, or commit to checkout, if necessary
+    )
+
+    with TemporaryDirectory() as tmpdir:
+        try:
+            cookiecutter_dir, _ = determine_repo_dir(
+                template=TEMPLATE_TO_BUILD,
+                abbreviations={},
+                clone_to_dir=Path(tmpdir).resolve(),
+                checkout=checkout,
+                no_input=True,
+                directory=directory,
+            )
+        except Exception as exc:
+            raise Exception(
+                f"Failed to generate project: could not clone repository at {TEMPLATE_TO_BUILD}."
+            ) from exc
+
+        project_path = cookiecutter(
+            template=str(cookiecutter_dir),
+            no_input=True,
+            extra_context={"project_name": args.project_name},
+        )
+        print(f"Creating new project: {args.project_name}")
+        return project_path
 
 
 def start(args):
