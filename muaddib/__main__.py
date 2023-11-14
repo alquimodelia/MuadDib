@@ -3,7 +3,15 @@ import argparse
 import logging
 import logging.config
 
-from muaddib.commands import experiment, init, new, start, train, train_case
+from muaddib.commands import (
+    experiment,
+    init,
+    new,
+    start,
+    train,
+    train_case,
+    train_on_experiment_loop,
+)
 
 log = logging.getLogger(__name__)
 
@@ -40,6 +48,16 @@ def get_arg_parser():
     parser_train_case = subparsers.add_parser("train_case", help="start help")
     parser_train_case.add_argument("--case", help="Model to train")
     parser_train_case.add_argument("--experiment", help="Model to train")
+
+    parser_train_on_experiment_loop = subparsers.add_parser(
+        "train_on_experiment_loop", help="start help"
+    )
+    parser_train_on_experiment_loop.add_argument(
+        "--case", help="Model to train"
+    )
+    parser_train_on_experiment_loop.add_argument(
+        "--experiment", help="Model to train"
+    )
 
     subparsers.add_parser("init", help="start help")
     subparsers.add_parser("experiment", help="start help")
@@ -88,6 +106,7 @@ COMMANDS = {
     "start": start,
     "plots": handle_plots,
     "run": handle_run,
+    "train_on_experiment_loop": train_on_experiment_loop,
 }
 
 
