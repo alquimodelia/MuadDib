@@ -51,6 +51,11 @@ def start(args):
     # TODO: Check if its in a muaddib project
 
     startup()
+    global experiments_list
+    global experiments_dict
+    from experiments.experiment import experiments_dict, experiments_list
+
+    print("uipiiiiiii", experiments_dict)
 
 
 def init(args):
@@ -90,12 +95,11 @@ def train(args, train_model=None):
 def train_case(args):
     start(args)
     # TODO: handle this multiple imports
-    from experiments.experiment import experiments_dict
 
     experiment_name = args.experiment
     case_name = args.case
     exp = experiments_dict[experiment_name]
-
+    exp.setup()
     case_obj = exp.study_cases[case_name]
     if not case_obj.complete:
         print("-------------------------------------------------------------")
@@ -103,32 +107,92 @@ def train_case(args):
         case_obj.train_model()
 
 
+# BaseManager.register('Experiment', Experiment)
+# BaseManager.register('Case', Case)
+
+
+def train_model_process(case_obj):
+    if not case_obj.complete:
+        print("-------------------------------------------------------------")
+        print(
+            f"Training Model:{case_obj.name}. On experiment {case_obj.experiment_name}"
+        )
+        case_obj.train_model()
+
+
+# TODO: chane this, this is garbage
+def train_on_experiment_loop(args):
+    start(args)
+    experiment_name_train = args.experiment
+    case_name_train = args.case
+    for experiment_name, exp in experiments_dict.items():
+        exp.setup()
+        print("-------------------------------------------------------------")
+        for case_obj in exp.conf:
+            if experiment_name == experiment_name_train:
+                case_name = str(case_obj.name)
+                if len(case_name.split("_")) > 3:
+                    continue
+
+                if case_name == case_name_train:
+                    if not case_obj.complete:
+                        case_obj.train_model()
+                        return
+                        # command = (
+                        #     f"KERAS_BACKEND={case_obj.keras_backend}"
+                        #     f" muaddib train_case --experiment={experiment_name} --case={case_name}"
+                        # )
+
+                        # open_new_console(command)
+            case_obj.validate_model()
+
+        exp.validate_experiment()
+        exp.visualize_report()
+
+
 def experiment(args):
     start(args)
     name = getattr(args, "name", None)
 
-    from experiments.experiment import experiments_list
+    # manager = BaseManager()
+    # manager.start()
 
-    for exp in experiments_list:
+    for experiment_name, exp in experiments_dict.items():
+        # Create a proxy for the ExperimentClass instance
+        # exp = manager.Experiment(exp)
+        exp.setup()
         print("-------------------------------------------------------------")
-        experiment_name = exp.name
-        print(f"Experiment {experiment_name}")
         # if exp.complete:
         # continue
         if name is not None:
             if name != experiment_name:
                 continue
         for case_obj in exp.conf:
-            if not case_obj.complete:
-                case_name = str(case_obj.name)
+            case_name = str(case_obj.name)
 
+            # case_obj = manager.Case(exp)
+            # if not case_obj.complete:
+            #     with Pool(processes=1) as pool:
+            #         argst = Namespace(experiment=experiment_name, case=case_name)
+            #         # pool.apply(train_model_process, args=(case_obj,))
+            #         pool.apply(train_case, args=(argst,))
+
+            # case_obj.validate_model()
+
+            if not case_obj.complete:
+                # command = (
+                #     f"KERAS_BACKEND={case_obj.keras_backend}"
+                #     f" muaddib train_case --experiment={experiment_name} --case={case_name}"
+                # )
                 command = (
                     f"KERAS_BACKEND={case_obj.keras_backend}"
-                    f" muaddib train_case --experiment={experiment_name} --case={case_name}"
+                    f" muaddib train_on_experiment_loop --experiment={experiment_name} --case={case_name}"
                 )
-
                 open_new_console(command)
             case_obj.validate_model()
 
         exp.validate_experiment()
         exp.visualize_report()
+        print("exp.worthy_cases in commandsssssssssssssssss")
+
+        print(exp.worthy_cases)

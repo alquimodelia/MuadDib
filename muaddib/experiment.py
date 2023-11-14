@@ -1,6 +1,7 @@
 # ShaiHulud
 import glob
 import inspect
+import itertools
 import json
 import os
 
@@ -8,6 +9,8 @@ import mlflow
 from mlflow import MlflowClient
 
 client = MlflowClient(tracking_uri="http://127.0.0.1:8080")
+
+# TODO: make some lightweight version of the object, like just the case.__dict__ to get str values out of it
 
 
 class SpiceEyes:
@@ -69,6 +72,7 @@ class Case(SpiceEyes):
         model_types=".keras",
         model_conf_name="model_conf.json",
         experiment_name="",
+        previous_benchmark=None,
         **kwargs,
     ):
         self.case_name = case_name
@@ -80,6 +84,9 @@ class Case(SpiceEyes):
         self.model_conf_name = model_conf_name
         self.experiment_name = experiment_name
 
+        self.best_result = None
+        self.previous_benchmark = previous_benchmark
+        self.worthy = False
         super().__init__(work_folder=work_folder, **kwargs)
         self.setup()
 
@@ -87,10 +94,11 @@ class Case(SpiceEyes):
         self,
     ):
         if self.name is None:
-            if self.case_name:
-                self.name = f"{self.model_name}_{self.case_name}"
-            else:
-                self.name = f"{self.model_name}"
+            self.name = self.model_name
+
+        if self.case_name:
+            self.name = f"{self.name}_{self.case_name}"
+
         self.case_work_path = os.path.join(self.work_folder, self.name)
 
         os.makedirs(self.case_work_path, exist_ok=True)
@@ -233,6 +241,10 @@ class Case(SpiceEyes):
             bool_prediction = os.path.exists(prediction_path)
             bool_score = os.path.exists(score_path)
             validation_done = bool_prediction & bool_score
+            # TODO: change this to a way to do a new validation if the scores change?
+            # A variable input args in the command
+            # if true does the score agina  if false just does the fihures
+            predict_score = None
             if not validation_done:
                 predict_score = self.validation_fn(
                     model_path=freq_save, model_name=self.name, epoch=epoch
@@ -241,12 +253,13 @@ class Case(SpiceEyes):
                 if bool_score:
                     with open(score_path) as f:
                         predict_score = json.load(f)
-            if self.case_name:
-                predict_score["case"] = self.case_name
+            if predict_score:
+                if self.case_name:
+                    predict_score["case"] = self.case_name
             self.set_predict_score(predict_score)
-        self.write_report()
         if not self.complete:
             return
+        self.write_report()
 
     def write_report(self):
         import pandas as pd
@@ -263,6 +276,9 @@ class Case(SpiceEyes):
         ascending_to_sort = False
         # All results, ordered by epoch
         case_results.sort_values(by="epoch", inplace=True)
+        self.best_result = max(case_results[COLUMN_TO_SORT_BY])
+        if self.previous_benchmark:
+            self.worthy = self.best_result >= self.previous_benchmark
         path_schema_csv = os.path.join(case_report_path, "case_results.csv")
         path_schema_tex = os.path.join(case_report_path, "case_results.tex")
         case_results.sort_values(
@@ -297,16 +313,21 @@ class Experiment(SpiceEyes):
         models_dict=None,
         description="",
         experiment_tags=None,
+        previous_experiment=None,
+        previous_cases=None,
         **kwargs,
     ):
         self.models_dict = models_dict
+        self.previous_experiment = previous_experiment
+        self.previous_cases = previous_cases
+        self.best_result = None
 
         super().__init__(name=name, work_folder=work_folder, **kwargs)
         self.description = description
         self.set_tags(experiment_tags)
-        self.set_mlflow_experiment()
-        self.setup()
-        self.experiment_configuration(models_dict)
+        # self.set_mlflow_experiment()
+        # self.setup()
+        # self.experiment_configuration(models_dict)
 
     def set_tags(self, experiment_tags=None):
         experiment_tags = experiment_tags or {}
@@ -335,6 +356,11 @@ class Experiment(SpiceEyes):
         self.case_work_path = os.path.join(self.work_folder, self.name)
 
         os.makedirs(self.case_work_path, exist_ok=True)
+        if self.previous_experiment:
+            self.previous_cases = self.previous_experiment.worthy_cases
+
+        self.set_mlflow_experiment()
+        self.experiment_configuration(self.models_dict)
 
     def get_compile_args(self, optimizer, loss, metrics):
         compile_args = {
@@ -367,8 +393,13 @@ class Experiment(SpiceEyes):
         batch_size=None,
         model=None,
         weight=None,
+        previous_benchmark=None,
+        name=None,
     ):
         case_list = []
+        metrics = metrics or self.metrics
+        callbacks = callbacks or self.callbacks
+        epochs = epochs or self.epochs
 
         # Define a dictionary with the variables and their default values
         variables = {
@@ -377,42 +408,94 @@ class Experiment(SpiceEyes):
             "batch_size": batch_size or self.batch_size,
         }
 
-        metrics = metrics or self.metrics
-        callbacks = callbacks or self.callbacks
-        epochs = epochs or self.epochs
-        # Iterate over the dictionary
+        vars_lists = []
         for key, value in variables.items():
             # Check if the value is a list
             if isinstance(value, list):
-                # If the value is a list, iterate over it
-                for v in value:
-                    if isinstance(v, int):
-                        case_name = v
+                # This give me a list of which keys are cases
+                vars_lists.append(key)
+            else:
+                variables[key] = [value]
+
+        # Extract the lists from the dictionary
+        lists = list(variables.values())
+
+        # Use itertools.product to get all combinations
+        for combination in itertools.product(*lists):
+            case_name = ""
+            # Zip the keys with the combination
+            args = {
+                key: value for key, value in zip(variables.keys(), combination)
+            }
+            # get the case name
+            for key, value in args.items():
+                if key in vars_lists:
+                    if isinstance(value, int):
+                        key_name = value
+                    elif isinstance(value, str):
+                        key_name = value
                     else:
-                        case_name = v.name
+                        key_name = value.name
                         # Just the 1st letter of each word
-                        case_name = "".join(
-                            [f[0] for f in case_name.split("_")]
-                        )
-                    # Create a Case object for each entry in the list
-                    case_obj = Case(
-                        **{key: v},
-                        **{k: v for k, v in variables.items() if k != key},
-                        metrics=metrics,
-                        callbacks=callbacks,
-                        model_name=model_name,
-                        case_name=case_name,
-                        epochs=epochs,
-                        model=model,
-                        name=None,
-                        work_folder=self.case_work_path,
-                        train_fn=self.train_fn,
-                        validation_fn=self.validation_fn,
-                        experiment_name=self.name,
-                    )
-                    case_list.append(case_obj)
-                    self.complete = self.complete & case_obj.complete
-                    self.set_predict_score(case_obj.predict_score)
+                        key_name = "".join([f[0] for f in key_name.split("_")])
+
+                    case_name += f"{key_name}_"
+            if case_name.endswith("_"):
+                case_name = case_name[:-1]
+            case_obj = Case(
+                **args,
+                metrics=metrics,
+                callbacks=callbacks,
+                model_name=model_name,
+                case_name=case_name,
+                epochs=epochs,
+                model=model,
+                work_folder=self.case_work_path,
+                train_fn=self.train_fn,
+                validation_fn=self.validation_fn,
+                experiment_name=self.name,
+                previous_benchmark=previous_benchmark,
+                name=name,
+            )
+            case_list.append(case_obj)
+            self.complete = self.complete & case_obj.complete
+            self.set_predict_score(case_obj.predict_score)
+
+        # # Iterate over the dictionary
+        # for key, value in variables.items():
+        #     # Check if the value is a list
+        #     if isinstance(value, list):
+        #         # If the value is a list, iterate over it
+        #         for v in value:
+        #             if isinstance(v, int):
+        #                 case_name = v
+        #             elif isinstance(v, str):
+        #                 case_name=v
+        #             else:
+        #                 case_name = v.name
+        #                 # Just the 1st letter of each word
+        #                 case_name = "".join(
+        #                     [f[0] for f in case_name.split("_")]
+        #                 )
+        #             # Create a Case object for each entry in the list
+        #             case_obj = Case(
+        #                 **{key: v},
+        #                 **{k: v for k, v in variables.items() if k != key},
+        #                 metrics=metrics,
+        #                 callbacks=callbacks,
+        #                 model_name=model_name,
+        #                 case_name=case_name,
+        #                 epochs=epochs,
+        #                 model=model,
+        #                 name=None,
+        #                 work_folder=self.case_work_path,
+        #                 train_fn=self.train_fn,
+        #                 validation_fn=self.validation_fn,
+        #                 experiment_name=self.name,
+        #             )
+        #             case_list.append(case_obj)
+        #             self.complete = self.complete & case_obj.complete
+        #             self.set_predict_score(case_obj.predict_score)
         if len(case_list) == 0:
             # If the value is not a list, create a Case object with the value
             case_obj = Case(
@@ -427,6 +510,7 @@ class Experiment(SpiceEyes):
                 train_fn=self.train_fn,
                 validation_fn=self.validation_fn,
                 experiment_name=self.name,
+                previous_benchmark=previous_benchmark,
             )
             case_list.append(case_obj)
             self.complete = self.complete & case_obj.complete
@@ -450,22 +534,73 @@ class Experiment(SpiceEyes):
         models_dict = models_dict or self.models_dict
         self.conf = []
         self.study_cases = {}
-        for model_name, model in models_dict.items():
-            case_conf_list = self.case_configuration(
-                model_name=model_name, model=model, **kwargs
-            )
-            for case_obj in case_conf_list:
-                self.conf.append(case_obj)
-                self.study_cases[case_obj.name] = case_obj
+        if self.previous_cases:
+            for previous_case_obj in self.previous_cases:
+                variables = {
+                    "optimizer": isinstance(self.optimizer, list),
+                    "loss": isinstance(self.loss, list),
+                    "batch_size": isinstance(self.batch_size, list),
+                }
+                if variables["optimizer"]:
+                    opt = self.optimizer
+                else:
+                    opt = previous_case_obj.optimizer
+
+                if variables["loss"]:
+                    lll = self.loss
+                else:
+                    lll = previous_case_obj.loss
+                if variables["batch_size"]:
+                    bbss = self.batch_size
+                else:
+                    bbss = previous_case_obj.batch_size
+                # name I want previous_case_obj.name
+                previous_benchmark = previous_case_obj.best_result
+                if self.previous_experiment.best_result:
+                    previous_benchmark = self.previous_experiment.best_result
+                case_conf_list = self.case_configuration(
+                    model_name=previous_case_obj.model_name,
+                    model=previous_case_obj.model,
+                    optimizer=opt,
+                    loss=lll,
+                    batch_size=bbss,
+                    metrics=previous_case_obj.metrics,
+                    epochs=self.epochs,
+                    callbacks=self.callbacks,
+                    # weight=previous_case_obj.weight
+                    previous_benchmark=previous_benchmark,
+                    name=previous_case_obj.name,
+                    **kwargs,
+                )
+                for case_obj in case_conf_list:
+                    self.conf.append(case_obj)
+                    self.study_cases[case_obj.name] = case_obj
+        else:
+            for model_name, model in models_dict.items():
+                case_conf_list = self.case_configuration(
+                    model_name=model_name, model=model, **kwargs
+                )
+                for case_obj in case_conf_list:
+                    self.conf.append(case_obj)
+                    self.study_cases[case_obj.name] = case_obj
         return self.conf
 
     def validate_experiment(self):
         for case_obj in self.conf:
             self.set_predict_score(case_obj.predict_score)
+            if not self.best_result:
+                self.best_result = case_obj.best_result
+            else:
+                self.best_result = max(
+                    [case_obj.best_result, self.best_result]
+                )
+
         self.write_report()
 
     # TODO: change all this mess of report writing
+    # TODO: outsource this somewhere else, its too specific for my thesis case.
     def write_report(self):
+        print(f"writin report for {self.name}")
         import pandas as pd
 
         # TODO: change this path thingys
@@ -573,6 +708,12 @@ class Experiment(SpiceEyes):
         print("----------------------------------------------------")
         print("Worthy models are: ", unique_values_list)
         self.worthy_models = unique_values_list
+        self.worthy_cases = [
+            self.study_cases[f]
+            for f in unique_values_list
+            # if self.study_cases[f].worthy
+        ]
+
         if ascending_to_sort is False:
             no_missin_scores = no_missin_scores.groupby("name").apply(
                 lambda x: x.nlargest(3, COLUMN_TO_SORT_BY)
@@ -592,6 +733,13 @@ class Experiment(SpiceEyes):
 
         no_missin_scores.to_latex(
             path_schema_tex, escape=False, index=False, float_format="%.2f"
+        )
+
+        # TODO: make a plot with the real data and the best predictions
+        # the plot is the one year, one month, one week, one day
+        # maybe the best and the worse of each
+        benchmark_prediction_file = self.benchmark_score_file.replace(
+            ".json", "npz"
         )
 
     def visualize_report(self):
@@ -633,12 +781,14 @@ class Experiment(SpiceEyes):
 
         metrics_to_check = ["alloc missing", "alloc surplus"]
         figure_name = "experiment_results_redux.png"
+        figure_size = (20, 10)
         self.visualize_report_fn(
             self.predict_score,
             metrics_to_check=metrics_to_check,
             benchmark_score=benchmark_score,
             folder_figures=folder_figures,
             figure_name=figure_name,
+            figsize=figure_size,
         )
 
         self.visualize_report_fn(
@@ -648,6 +798,7 @@ class Experiment(SpiceEyes):
             folder_figures=folder_figures,
             figure_name=figure_name,
             limit_by="outliers",
+            figsize=figure_size,
         )
         self.visualize_report_fn(
             self.predict_score,
@@ -656,4 +807,5 @@ class Experiment(SpiceEyes):
             folder_figures=folder_figures,
             figure_name=figure_name,
             limit_by="benchmark",
+            figsize=figure_size,
         )
