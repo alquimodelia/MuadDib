@@ -1,16 +1,48 @@
 # ShaiHulud
 import glob
+import importlib
 import inspect
 import itertools
 import json
 import os
 
+import alquitable
+import keras_core
 import mlflow
 from mlflow import MlflowClient
 
 client = MlflowClient(tracking_uri="http://127.0.0.1:8080")
 
+
 # TODO: make some lightweight version of the object, like just the case.__dict__ to get str values out of it
+def is_jsonable(x):
+    if isinstance(x, list):
+        return all(is_jsonable(item) for item in x)
+    try:
+        json.dumps(x)
+        return True
+    except (TypeError, OverflowError):
+        return False
+
+
+def get_mirror_weight_loss(loss_name):
+    if "mirror_weights" not in loss_name:
+        print("not a mirror weight loss")
+        return
+    loss_used = loss_name.replace("mirror_weights_", "")
+    from alquitable.advanced_losses import MirrorWeights
+    from alquitable.losses import loss_functions
+
+    loss_used_fn = getattr(loss_functions, loss_used, None)
+    if loss_used_fn is None:
+        from keras_core.src.losses import ALL_OBJECTS_DICT
+
+        loss_used_fn = getattr(ALL_OBJECTS_DICT, loss_used, None)
+    if loss_used_fn is None:
+        print("loss not found")
+        return
+
+    return MirrorWeights(loss_to_use=loss_used_fn)
 
 
 class SpiceEyes:
@@ -60,6 +92,110 @@ class SpiceEyes:
             else:
                 self.predict_score[key] += value
 
+    def save(self, path=None):
+        dict_to_load = self.__dict__.copy()
+        dict_to_save = {}
+        for key, value in dict_to_load.items():
+            dict_to_save[key] = value
+            if key == "conf":
+                dict_to_save[key] = list(range(len(dict_to_load[key])))
+                for i, k in enumerate(dict_to_load[key]):
+                    dict_to_save[key][i] = k.conf_file
+            if key == "study_cases":
+                dict_to_save[key] = {}
+                for k, v in dict_to_load[key].items():
+                    dict_to_save[key][k] = v.conf_file
+            if key == "models_dict":
+                dict_to_save[key] = {}
+                for k in dict_to_load[key].keys():
+                    dict_to_save[key][k] = os.path.join(
+                        os.getenv("MODELS_FOLDER"), f"{k}.json"
+                    )
+            if "_fn" in key:  # function
+                # TODO: check if we can load then with this or if its the model that should be saved
+                dict_to_save[key] = f"{value.__module__}:{value.__name__}"
+
+            if key == "callbacks":
+                value_str = [
+                    str(f).split(".")[-1].replace("'>", "")
+                    for f in self.callbacks
+                ]
+                dict_to_save[key] = value_str
+            if key == "previous_cases":
+                if dict_to_load[key]:
+                    dict_to_save[key] = list(range(len(dict_to_load[key])))
+                    for i, k in enumerate(dict_to_load[key]):
+                        dict_to_save[key][i] = f"{k.experiment_name}:{k.name}"
+
+            if key == "loss":
+                if dict_to_load[key]:
+                    value_str = self.loss
+                    if not isinstance(value_str, list):
+                        value_str = [value_str]
+                    dict_to_save[key] = list(range(len(value_str)))
+                    for i, k in enumerate(value_str):
+                        dict_to_save[key][i] = (
+                            k.name if hasattr(k, "name") else k
+                        )
+
+            if not is_jsonable(dict_to_save[key]):
+                dict_to_save[key] = (
+                    dict_to_save[key].name
+                    if hasattr(dict_to_save[key], "name")
+                    else str(dict_to_save[key])
+                )
+
+        with open(path, "w") as f:
+            json.dump(dict_to_save, f)
+
+    def load(self, path=None):
+        with open(path, "r") as f:
+            dict_to_load = json.load(f)
+
+        # Create a new dictionary to store the loaded data
+        dict_to_restore = {}
+
+        # Restore the original data structures and objects
+        for key, value in dict_to_load.items():
+            if key == "conf":
+                # Load a Case
+                dict_to_restore[
+                    key
+                ] = None  # [self.Conf(conf_file=conf_file) for conf_file in value]
+            elif key == "study_cases":
+                # Load a Case
+                dict_to_restore[
+                    key
+                ] = None  # {k: self.StudyCase(conf_file=v) for k, v in value.items()}
+            elif key == "models_dict":
+                dict_to_restore[key] = {
+                    k: keras_core.models.model_from_json(v)
+                    for k, v in value.items()
+                }
+            elif "_fn" in key:
+                module_name, function_name = value.split(":")
+                module = importlib.import_module(module_name)
+                dict_to_restore[key] = getattr(module, function_name)
+            elif key == "callbacks":
+                dict_to_restore[key] = [
+                    getattr(alquitable.callbacks, callback_name)
+                    for callback_name in value
+                ]
+            elif key == "previous_cases":
+                # Load an Experiemnt?
+                dict_to_restore[
+                    key
+                ] = None  # [self.Experiment(experiment_name=experiment_name, name=name) for experiment_name, name in value]
+            elif key == "loss":
+                dict_to_restore[key] = [
+                    get_mirror_weight_loss(loss_name) for loss_name in value
+                ]
+            else:
+                dict_to_restore[key] = value
+
+        # Update the object's dictionary with the loaded data
+        self.__dict__.update(dict_to_restore)
+
 
 class Case(SpiceEyes):
     def __init__(
@@ -83,7 +219,7 @@ class Case(SpiceEyes):
         self.model_types = model_types
         self.model_conf_name = model_conf_name
         self.experiment_name = experiment_name
-
+        self.some_training = False
         self.best_result = None
         self.previous_benchmark = previous_benchmark
         self.worthy = False
@@ -106,6 +242,7 @@ class Case(SpiceEyes):
         self.model_keras_path = os.path.join(
             self.case_work_path, f"{self.name}.keras"
         )
+        self.conf_file = os.path.join(self.case_work_path, "case_conf.json")
 
         # Frequency saves
         self.case_work_frequency_path = os.path.join(
@@ -131,6 +268,7 @@ class Case(SpiceEyes):
 
         self.set_compile_args()
         self.set_fit_args()
+        self.save(self.conf_file)
 
     def set_compile_args(self):
         compile_args = {
@@ -143,6 +281,9 @@ class Case(SpiceEyes):
 
     def set_fit_args(self):
         epocs_to_train = self.epochs - self.last_epoch
+        if epocs_to_train < self.epochs:
+            self.some_training = True
+
         if epocs_to_train < 1:
             self.complete = True
             return
@@ -152,6 +293,16 @@ class Case(SpiceEyes):
             self.callbacks = [self.callbacks]
 
         for callback in self.callbacks:
+            qry = f"{self.case_work_path}/**.json"
+            json_list = glob.glob(qry)
+            if not isinstance(json_list, list):
+                json_list = [json_list]
+            json_list = [f for f in json_list if self.model_conf_name not in f]
+            if len(json_list) == 0:
+                json_list = None
+            else:
+                json_list = json_list[0]
+
             callback_args = {}
             arg_names = inspect.getfullargspec(callback).args
             if "save_frequency" in arg_names:
@@ -168,10 +319,13 @@ class Case(SpiceEyes):
             if "model_log_filename" in arg_names:
                 callback_args[
                     "model_log_filename"
-                ] = self.model_keras_path.replace(".keras", ".json")
-            if "logs" in arg_names:
-                model_history_filename = self.model_keras_path.replace(
+                ] = json_list or self.model_keras_path.replace(
                     ".keras", ".json"
+                )
+            if "logs" in arg_names:
+                model_history_filename = (
+                    json_list
+                    or self.model_keras_path.replace(".keras", ".json")
                 )
                 if os.path.exists(model_history_filename):
                     with open(model_history_filename) as f:
@@ -213,7 +367,8 @@ class Case(SpiceEyes):
         mlflow_callback = mlflow.keras_core.MLflowCallback(run)
         if mlflow_callback not in self.fit_args["callbacks"]:
             self.fit_args["callbacks"].append(mlflow_callback)
-
+        print("-----------------------------------------------------------")
+        print(f"Training Model {self.name} from {self.experiment_name}")
         self.train_fn(
             self.model,
             fit_args=self.fit_args,
@@ -257,9 +412,11 @@ class Case(SpiceEyes):
                 if self.case_name:
                     predict_score["case"] = self.case_name
             self.set_predict_score(predict_score)
+        if self.some_training:
+            self.write_report()
+            self.save(self.conf_file)
         if not self.complete:
             return
-        self.write_report()
 
     def write_report(self):
         import pandas as pd
@@ -361,6 +518,8 @@ class Experiment(SpiceEyes):
 
         self.set_mlflow_experiment()
         self.experiment_configuration(self.models_dict)
+        self.conf_file = os.path.join(self.case_work_path, "exp_conf.json")
+        self.save(self.conf_file)
 
     def get_compile_args(self, optimizer, loss, metrics):
         compile_args = {
@@ -536,6 +695,9 @@ class Experiment(SpiceEyes):
         self.study_cases = {}
         if self.previous_cases:
             for previous_case_obj in self.previous_cases:
+                print(previous_case_obj.name)
+                if "UNET" in previous_case_obj.name:
+                    continue
                 variables = {
                     "optimizer": isinstance(self.optimizer, list),
                     "loss": isinstance(self.loss, list),
@@ -558,6 +720,7 @@ class Experiment(SpiceEyes):
                 previous_benchmark = previous_case_obj.best_result
                 if self.previous_experiment.best_result:
                     previous_benchmark = self.previous_experiment.best_result
+
                 case_conf_list = self.case_configuration(
                     model_name=previous_case_obj.model_name,
                     model=previous_case_obj.model,
@@ -586,16 +749,20 @@ class Experiment(SpiceEyes):
         return self.conf
 
     def validate_experiment(self):
+        print("----------------------------------------------------------")
+        print(f"Validating {self.name}")
         for case_obj in self.conf:
             self.set_predict_score(case_obj.predict_score)
             if not self.best_result:
                 self.best_result = case_obj.best_result
             else:
-                self.best_result = max(
-                    [case_obj.best_result, self.best_result]
-                )
+                if case_obj.best_result:
+                    self.best_result = max(
+                        [case_obj.best_result, self.best_result]
+                    )
 
         self.write_report()
+        self.save(self.conf_file)
 
     # TODO: change all this mess of report writing
     # TODO: outsource this somewhere else, its too specific for my thesis case.
@@ -674,7 +841,6 @@ class Experiment(SpiceEyes):
         second_third_best_scores.sort_values(
             by=COLUMN_TO_SORT_BY, ascending=ascending_to_sort, inplace=True
         )
-
         path_schema_tex = os.path.join(
             case_report_path, "experiment_results_best3.tex"
         )
@@ -688,6 +854,8 @@ class Experiment(SpiceEyes):
         no_missin_scores = no_missin_scores.dropna().sort_values(
             by="bscore", ascending=False
         )
+        if len(no_missin_scores["bscore"]) > 0:
+            self.best_result = max(no_missin_scores["bscore"])
 
         path_schema_tex = os.path.join(
             case_report_path, "experiment_results_best_10_under_benchmark.tex"
@@ -704,7 +872,68 @@ class Experiment(SpiceEyes):
         no_missin_scores.to_latex(
             path_schema_tex, escape=False, index=False, float_format="%.2f"
         )
-        unique_values_list = no_missin_scores["name"].unique().tolist()
+        if self.epochs > 50:
+            no_missin_scores2 = case_results[case_results["bscore m"] >= 0]
+            no_missin_scores2 = no_missin_scores2[
+                no_missin_scores2["bscore s"] >= 0
+            ]
+            no_missin_scores2 = no_missin_scores2[
+                no_missin_scores2["epoch"] <= 50
+            ]
+
+            no_missin_scores2 = no_missin_scores2.dropna().sort_values(
+                by="bscore", ascending=False
+            )
+            if len(no_missin_scores2["bscore"]) > 0:
+                self.best_result = max(no_missin_scores2["bscore"])
+
+            path_schema_tex = os.path.join(
+                case_report_path,
+                "experiment_results_best_10_under_benchmarkminu50epochs.tex",
+            )
+
+            no_missin_scores2.head(10).to_latex(
+                path_schema_tex, escape=False, index=False, float_format="%.2f"
+            )
+
+            path_schema_tex = os.path.join(
+                case_report_path,
+                "experiment_results_best_under_benchmark_minu50epochs.tex",
+            )
+
+            no_missin_scores2.to_latex(
+                path_schema_tex, escape=False, index=False, float_format="%.2f"
+            )
+        better_scores = []
+
+        if self.previous_experiment:
+            better_scores = no_missin_scores[
+                no_missin_scores["bscore"]
+                >= self.previous_experiment.best_result
+            ]
+        if len(better_scores) > 0:
+            unique_values_list = better_scores["name"].unique().tolist()
+            path_schema_tex = os.path.join(
+                case_report_path,
+                "experiment_results_better_than_previous_10_under_benchmark.tex",
+            )
+
+            better_scores.head(10).to_latex(
+                path_schema_tex, escape=False, index=False, float_format="%.2f"
+            )
+
+            path_schema_tex = os.path.join(
+                case_report_path,
+                "experiment_results_better_than_previous_under_benchmark.tex",
+            )
+
+            better_scores.to_latex(
+                path_schema_tex, escape=False, index=False, float_format="%.2f"
+            )
+            self.best_result = max(better_scores["bscore"])
+
+        else:
+            unique_values_list = no_missin_scores["name"].unique().tolist()
         print("----------------------------------------------------")
         print("Worthy models are: ", unique_values_list)
         self.worthy_models = unique_values_list

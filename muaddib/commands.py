@@ -149,7 +149,11 @@ def train_on_experiment_loop(args):
         for case_obj in exp.conf:
             if experiment_name == experiment_name_train:
                 case_name = str(case_obj.name)
-                if len(case_name.split("_")) > 3:
+                if len(case_name.split("_")) > 4:
+                    continue
+                # if "252" in case_obj.name:
+                #     continue
+                if case_obj.name.endswith("_adam"):
                     continue
 
                 if case_name == case_name_train:
@@ -185,7 +189,10 @@ def experiment(args):
         if name is not None:
             if name != experiment_name:
                 continue
+        print(exp.name)
         for case_obj in exp.conf:
+            print(case_obj.name)
+
             case_name = str(case_obj.name)
 
             # case_obj = manager.Case(exp)
@@ -208,7 +215,6 @@ def experiment(args):
                 )
                 open_new_console(command)
             case_obj.validate_model()
-
         exp.validate_experiment()
         exp.visualize_report()
         print("exp.worthy_cases in commandsssssssssssssssss")
