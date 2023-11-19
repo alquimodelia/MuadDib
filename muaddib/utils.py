@@ -55,11 +55,13 @@ def startup(env_file=".env"):
 
     RAW_FILE_NAME = os.getenv("RAW_FILE_NAME")
     RAW_FILE_PATH = os.path.join(DATA_FOLDER, "raw", RAW_FILE_NAME)
+    os.environ["RAW_FILE_PATH"] = RAW_FILE_PATH
 
     PROCESSED_FILE_NAME = os.getenv("PROCESSED_FILE_NAME")
     PROCESSED_FILE_PATH = os.path.join(
         DATA_FOLDER, "processed", PROCESSED_FILE_NAME
     )
+    os.environ["PROCESSED_FILE_PATH"] = PROCESSED_FILE_PATH
 
     MLFLOW_ADRESS = os.getenv("MLFLOW_ADRESS", None)
     MLFLOW_PORT = os.getenv("MLFLOW_PORT", None)

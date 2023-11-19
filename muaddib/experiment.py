@@ -7,9 +7,16 @@ import json
 import os
 
 import alquitable
-import keras_core
 import mlflow
+import numpy as np
+from keras_core.losses import MeanSquaredError
 from mlflow import MlflowClient
+
+from muaddib.shaihulud_utils import (
+    load_json_dict,
+    read_model_conf,
+    write_dict_to_file,
+)
 
 client = MlflowClient(tracking_uri="http://127.0.0.1:8080")
 
@@ -26,34 +33,51 @@ def is_jsonable(x):
 
 
 def get_mirror_weight_loss(loss_name):
-    if "mirror_weights" not in loss_name:
-        print("not a mirror weight loss")
-        return
     loss_used = loss_name.replace("mirror_weights_", "")
     from alquitable.advanced_losses import MirrorWeights
-    from alquitable.losses import loss_functions
+    from alquitable.losses import ALL_LOSSES_DICT
 
-    loss_used_fn = getattr(loss_functions, loss_used, None)
+    if "mirror_weights" in loss_name:
+        weight_on_surplus = True
+        if "reversed" in loss_name:
+            weight_on_surplus = False
+        words = loss_used.split("_")
+        words = [w.title() for w in words]
+        loss_used = "".join(words)
+    if len(loss_used.split("_")) > 1:
+        words = loss_used.split("_")
+        words = [f.title() for f in words]
+        loss_used = "".join(words)
+    loss_used_fn = ALL_LOSSES_DICT.get(loss_used, None)
     if loss_used_fn is None:
         from keras_core.src.losses import ALL_OBJECTS_DICT
 
-        loss_used_fn = getattr(ALL_OBJECTS_DICT, loss_used, None)
+        loss_used_fn = ALL_OBJECTS_DICT.get(loss_used, None)
     if loss_used_fn is None:
         print("loss not found")
+        print(loss_name)
+        print(loss_used)
+        print("------------")
         return
+    if "mirror_weights" in loss_name:
+        loss_used_fn = MirrorWeights(
+            loss_to_use=loss_used_fn(), weight_on_surplus=weight_on_surplus
+        )
+    else:
+        loss_used_fn = loss_used_fn()
 
-    return MirrorWeights(loss_to_use=loss_used_fn)
+    return loss_used_fn
 
 
 class SpiceEyes:
     def __init__(
         self,
-        work_folder,
+        work_folder=None,
         name=None,
         epochs=200,
         optimizer="adam",
         batch_size=252,
-        loss="mse",
+        loss=None,
         callbacks=None,
         metrics=None,
         train_fn=None,
@@ -61,6 +85,7 @@ class SpiceEyes:
         visualize_report_fn=None,
         keras_backend="torch",
         benchmark_score_file=None,
+        conf_file=None,
     ):
         callbacks = callbacks or []
         metrics = metrics or ["root_mean_squared_error"]
@@ -71,7 +96,7 @@ class SpiceEyes:
         self.optimizer = optimizer
         self.batch_size = batch_size
         self.callbacks = callbacks
-        self.loss = loss
+        self.loss = loss or MeanSquaredError()
         self.metrics = metrics
         self.train_fn = train_fn
         self.validation_fn = validation_fn
@@ -81,6 +106,11 @@ class SpiceEyes:
         self.predict_score = {}
         self.benchmark_score_file = benchmark_score_file
         self.worthy_models = None
+        self.conf_file = conf_file
+        self.predict_score_path = None
+        if self.conf_file:
+            if os.path.exists(self.conf_file):
+                self.__dict__ = self.load(self.conf_file)
 
     def set_predict_score(self, new_predict_score):
         for key in new_predict_score.keys():
@@ -97,6 +127,13 @@ class SpiceEyes:
         dict_to_save = {}
         for key, value in dict_to_load.items():
             dict_to_save[key] = value
+            if value is None:
+                continue
+
+            if key == "predict_score":
+                # Read from path on load (self.predict_score_path)
+                dict_to_save[key] = self.predict_score_path
+
             if key == "conf":
                 dict_to_save[key] = list(range(len(dict_to_load[key])))
                 for i, k in enumerate(dict_to_load[key]):
@@ -126,6 +163,8 @@ class SpiceEyes:
                     dict_to_save[key] = list(range(len(dict_to_load[key])))
                     for i, k in enumerate(dict_to_load[key]):
                         dict_to_save[key][i] = f"{k.experiment_name}:{k.name}"
+            if key == "worthy_cases":
+                dict_to_save[key] = [f.name for f in value]
 
             if key == "loss":
                 if dict_to_load[key]:
@@ -134,10 +173,7 @@ class SpiceEyes:
                         value_str = [value_str]
                     dict_to_save[key] = list(range(len(value_str)))
                     for i, k in enumerate(value_str):
-                        dict_to_save[key][i] = (
-                            k.name if hasattr(k, "name") else k
-                        )
-
+                        dict_to_save[key][i] = getattr(k, "name", k)
             if not is_jsonable(dict_to_save[key]):
                 dict_to_save[key] = (
                     dict_to_save[key].name
@@ -148,29 +184,31 @@ class SpiceEyes:
         with open(path, "w") as f:
             json.dump(dict_to_save, f)
 
-    def load(self, path=None):
+    @staticmethod
+    def load(path=None):
         with open(path, "r") as f:
             dict_to_load = json.load(f)
-
         # Create a new dictionary to store the loaded data
         dict_to_restore = {}
 
         # Restore the original data structures and objects
         for key, value in dict_to_load.items():
+            dict_to_restore[key] = value
+            if value is None:
+                continue
             if key == "conf":
                 # Load a Case
-                dict_to_restore[
-                    key
-                ] = None  # [self.Conf(conf_file=conf_file) for conf_file in value]
+                dict_to_restore[key] = [
+                    Case(conf_file=conf_file) for conf_file in value
+                ]
             elif key == "study_cases":
                 # Load a Case
-                dict_to_restore[
-                    key
-                ] = None  # {k: self.StudyCase(conf_file=v) for k, v in value.items()}
+                dict_to_restore[key] = {
+                    k: Case(conf_file=v) for k, v in value.items()
+                }
             elif key == "models_dict":
                 dict_to_restore[key] = {
-                    k: keras_core.models.model_from_json(v)
-                    for k, v in value.items()
+                    k: read_model_conf(v) for k, v in value.items()
                 }
             elif "_fn" in key:
                 module_name, function_name = value.split(":")
@@ -182,25 +220,61 @@ class SpiceEyes:
                     for callback_name in value
                 ]
             elif key == "previous_cases":
-                # Load an Experiemnt?
-                dict_to_restore[
-                    key
-                ] = None  # [self.Experiment(experiment_name=experiment_name, name=name) for experiment_name, name in value]
+                previous_cases = []
+                experiments_in_list = [f.split(":")[0] for f in value]
+                experiments_in_list = np.unique(experiments_in_list)
+                cases_per_experiment = {}
+                for exp in experiments_in_list:
+                    cases_per_experiment[exp] = [
+                        f.split(":")[1]
+                        for f in value
+                        if f.split(":")[0] == exp
+                    ]
+                    path_experiment = os.path.join(
+                        os.getenv("EXPERIMENT_FOLDER"), exp, "exp_conf.json"
+                    )
+                    exp_obj = Experiment(conf_file=path_experiment)
+                    previous_cases += [
+                        case_obj
+                        for case_name, case_obj in exp_obj.study_cases.items()
+                        if case_name in cases_per_experiment[exp]
+                    ]
+                dict_to_restore[key] = previous_cases
             elif key == "loss":
                 dict_to_restore[key] = [
                     get_mirror_weight_loss(loss_name) for loss_name in value
                 ]
-            else:
-                dict_to_restore[key] = value
+            elif key == "predict_score":
+                if os.path.exists(str(value)):
+                    dict_to_restore[key] = load_json_dict(value)
+                else:
+                    dict_to_restore[key] = {}
+            elif key == "previous_experiment":
+                path_experiment = os.path.join(
+                    os.getenv("EXPERIMENT_FOLDER"), value, "exp_conf.json"
+                )
+                exp_obj = Experiment(conf_file=path_experiment)
+                dict_to_restore[key] = exp_obj
 
+        if "worthy_cases" in dict_to_restore:
+            if len(dict_to_restore["worthy_cases"]) > 0:
+                dict_to_restore["worthy_cases"] = [
+                    case_obj
+                    for case_name, case_obj in dict_to_restore[
+                        "study_cases"
+                    ].items()
+                    if case_name in dict_to_restore["worthy_cases"]
+                ]
+
+        return dict_to_restore
         # Update the object's dictionary with the loaded data
-        self.__dict__.update(dict_to_restore)
+        # self.__dict__.update(dict_to_restore)
 
 
 class Case(SpiceEyes):
     def __init__(
         self,
-        work_folder,
+        work_folder=None,
         case_name="",  # Case specific
         model_name="",  # Model Name
         model=None,
@@ -226,30 +300,7 @@ class Case(SpiceEyes):
         super().__init__(work_folder=work_folder, **kwargs)
         self.setup()
 
-    def setup(
-        self,
-    ):
-        if self.name is None:
-            self.name = self.model_name
-
-        if self.case_name:
-            self.name = f"{self.name}_{self.case_name}"
-
-        self.case_work_path = os.path.join(self.work_folder, self.name)
-
-        os.makedirs(self.case_work_path, exist_ok=True)
-
-        self.model_keras_path = os.path.join(
-            self.case_work_path, f"{self.name}.keras"
-        )
-        self.conf_file = os.path.join(self.case_work_path, "case_conf.json")
-
-        # Frequency saves
-        self.case_work_frequency_path = os.path.join(
-            self.case_work_path, self.freq_saves
-        )
-        os.makedirs(self.case_work_frequency_path, exist_ok=True)
-
+    def check_trained_epochs(self):
         # Checks how many epochs were trained
         list_query = f"{self.case_work_frequency_path}/**{self.model_types}"
         list_freq_saves = glob.glob(list_query)
@@ -265,10 +316,40 @@ class Case(SpiceEyes):
             last_epoch_path = f"{self.case_work_frequency_path}/{last_epoch}{self.model_types}"
         self.last_epoch_path = last_epoch_path
         self.last_epoch = last_epoch
+        return
 
-        self.set_compile_args()
+    def setup(
+        self,
+    ):
+        if self.name is None:
+            self.name = self.model_name
+
+        if self.case_name:
+            self.name = f"{self.name}_{self.case_name}"
+
+        self.case_work_path = os.path.join(self.work_folder, self.name)
+        self.model_keras_path = os.path.join(
+            self.case_work_path, f"{self.name}.keras"
+        )
+        self.predict_score_path = os.path.join(
+            self.case_work_path, "predict_score.json"
+        )
+
+        # Frequency saves
+        self.case_work_frequency_path = os.path.join(
+            self.case_work_path, self.freq_saves
+        )
+        self.conf_file = self.conf_file or os.path.join(
+            self.case_work_path, "case_conf.json"
+        )
+        if os.path.exists(self.conf_file):
+            self.__dict__.update(self.load(self.conf_file))
+        else:
+            os.makedirs(self.case_work_path, exist_ok=True)
+            os.makedirs(self.case_work_frequency_path, exist_ok=True)
+            self.save(self.conf_file)
         self.set_fit_args()
-        self.save(self.conf_file)
+        self.set_compile_args()
 
     def set_compile_args(self):
         compile_args = {
@@ -280,6 +361,7 @@ class Case(SpiceEyes):
         self.compile_args = compile_args
 
     def set_fit_args(self):
+        self.check_trained_epochs()
         epocs_to_train = self.epochs - self.last_epoch
         if epocs_to_train < self.epochs:
             self.some_training = True
@@ -297,7 +379,7 @@ class Case(SpiceEyes):
             json_list = glob.glob(qry)
             if not isinstance(json_list, list):
                 json_list = [json_list]
-            json_list = [f for f in json_list if self.model_conf_name not in f]
+            json_list = [f for f in json_list if "_conf" not in f]
             if len(json_list) == 0:
                 json_list = None
             else:
@@ -381,40 +463,46 @@ class Case(SpiceEyes):
     def validate_model(self):
         if len(self.list_freq_saves) == 0:
             self.setup()
-        for freq_save in self.list_freq_saves:
-            epoch = int(
-                os.path.basename(freq_save).replace(self.model_types, "")
-            )
 
-            prediction_path = freq_save.replace(
-                "freq_saves", "freq_predictions"
-            ).replace(".keras", ".npz")
-            score_path = freq_save.replace(
-                "freq_saves", "freq_predictions"
-            ).replace(".keras", ".json")
-
-            bool_prediction = os.path.exists(prediction_path)
-            bool_score = os.path.exists(score_path)
-            validation_done = bool_prediction & bool_score
-            # TODO: change this to a way to do a new validation if the scores change?
-            # A variable input args in the command
-            # if true does the score agina  if false just does the fihures
-            predict_score = None
-            if not validation_done:
-                predict_score = self.validation_fn(
-                    model_path=freq_save, model_name=self.name, epoch=epoch
+        # TODO: Get it also some env to do this if necessary
+        if not self.predict_score:  # or if that env var
+            for freq_save in self.list_freq_saves:
+                epoch = int(
+                    os.path.basename(freq_save).replace(self.model_types, "")
                 )
-            else:
-                if bool_score:
-                    with open(score_path) as f:
-                        predict_score = json.load(f)
-            if predict_score:
-                if self.case_name:
-                    predict_score["case"] = self.case_name
-            self.set_predict_score(predict_score)
+
+                prediction_path = freq_save.replace(
+                    "freq_saves", "freq_predictions"
+                ).replace(".keras", ".npz")
+
+                score_path = freq_save.replace(
+                    "freq_saves", "freq_predictions"
+                ).replace(".keras", ".json")
+
+                bool_prediction = os.path.exists(prediction_path)
+                bool_score = os.path.exists(score_path)
+                validation_done = bool_prediction & bool_score
+                # TODO: change this to a way to do a new validation if the scores change?
+                # A variable input args in the command
+                # if true does the score agina  if false just does the fihures
+                predict_score = None
+                # TODO: set env varibale for this with command input
+                if not validation_done:
+                    predict_score = self.validation_fn(
+                        model_path=freq_save, model_name=self.name, epoch=epoch
+                    )
+                else:
+                    if bool_score:
+                        predict_score = load_json_dict(score_path)
+                if predict_score:
+                    if self.case_name:
+                        predict_score["case"] = self.case_name
+                self.set_predict_score(predict_score)
+            write_dict_to_file(self.predict_score, self.predict_score_path)
         if self.some_training:
+            # TODO also only do it if its not done or a env variables
             self.write_report()
-            self.save(self.conf_file)
+            # self.save(self.conf_file)
         if not self.complete:
             return
 
@@ -426,7 +514,6 @@ class Case(SpiceEyes):
             "experiments", "reports"
         )
         os.makedirs(case_report_path, exist_ok=True)
-
         case_results = pd.DataFrame(self.predict_score)
 
         COLUMN_TO_SORT_BY = "bscore"
@@ -465,8 +552,8 @@ class Case(SpiceEyes):
 class Experiment(SpiceEyes):
     def __init__(
         self,
-        name,
-        work_folder,
+        name=None,
+        work_folder=None,
         models_dict=None,
         description="",
         experiment_tags=None,
@@ -511,15 +598,20 @@ class Experiment(SpiceEyes):
         self,
     ):
         self.case_work_path = os.path.join(self.work_folder, self.name)
-
+        self.predict_score_path = os.path.join(
+            self.case_work_path, "predict_score.json"
+        )
         os.makedirs(self.case_work_path, exist_ok=True)
         if self.previous_experiment:
             self.previous_cases = self.previous_experiment.worthy_cases
 
         self.set_mlflow_experiment()
-        self.experiment_configuration(self.models_dict)
         self.conf_file = os.path.join(self.case_work_path, "exp_conf.json")
-        self.save(self.conf_file)
+        if os.path.exists(self.conf_file):
+            self.__dict__.update(self.load(self.conf_file))
+        else:
+            self.experiment_configuration(self.models_dict)
+            self.save(self.conf_file)
 
     def get_compile_args(self, optimizer, loss, metrics):
         compile_args = {
@@ -619,7 +711,7 @@ class Experiment(SpiceEyes):
             case_list.append(case_obj)
             self.complete = self.complete & case_obj.complete
             self.set_predict_score(case_obj.predict_score)
-
+        write_dict_to_file(self.predict_score, self.predict_score_path)
         # # Iterate over the dictionary
         # for key, value in variables.items():
         #     # Check if the value is a list
@@ -695,9 +787,8 @@ class Experiment(SpiceEyes):
         self.study_cases = {}
         if self.previous_cases:
             for previous_case_obj in self.previous_cases:
-                print(previous_case_obj.name)
-                if "UNET" in previous_case_obj.name:
-                    continue
+                # if "UNET" in previous_case_obj.name:
+                #     continue
                 variables = {
                     "optimizer": isinstance(self.optimizer, list),
                     "loss": isinstance(self.loss, list),
@@ -1038,3 +1129,33 @@ class Experiment(SpiceEyes):
             limit_by="benchmark",
             figsize=figure_size,
         )
+        metrics_to_check = None
+        figure_name = "experiment_results_case.png"
+        if "case" in self.predict_score:
+            self.visualize_report_fn(
+                self.predict_score,
+                metrics_to_check=metrics_to_check,
+                benchmark_score=benchmark_score,
+                folder_figures=folder_figures,
+                figure_name=figure_name,
+                column_to_group="case",
+            )
+
+            self.visualize_report_fn(
+                self.predict_score,
+                metrics_to_check=metrics_to_check,
+                benchmark_score=benchmark_score,
+                folder_figures=folder_figures,
+                figure_name=figure_name,
+                limit_by="outliers",
+                column_to_group="case",
+            )
+            self.visualize_report_fn(
+                self.predict_score,
+                metrics_to_check=metrics_to_check,
+                benchmark_score=benchmark_score,
+                folder_figures=folder_figures,
+                figure_name=figure_name,
+                limit_by="benchmark",
+                column_to_group="case",
+            )

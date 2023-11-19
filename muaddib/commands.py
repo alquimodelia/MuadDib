@@ -125,10 +125,6 @@ def train_case(args):
         case_obj.train_model()
 
 
-# BaseManager.register('Experiment', Experiment)
-# BaseManager.register('Case', Case)
-
-
 def train_model_process(case_obj):
     if not case_obj.complete:
         print("-------------------------------------------------------------")
@@ -151,8 +147,8 @@ def train_on_experiment_loop(args):
                 case_name = str(case_obj.name)
                 if len(case_name.split("_")) > 4:
                     continue
-                # if "252" in case_obj.name:
-                #     continue
+                if "252" in case_obj.name:
+                    continue
                 if case_obj.name.endswith("_adam"):
                     continue
 
@@ -178,7 +174,6 @@ def experiment(args):
 
     # manager = BaseManager()
     # manager.start()
-
     for experiment_name, exp in experiments_dict.items():
         # Create a proxy for the ExperimentClass instance
         # exp = manager.Experiment(exp)
@@ -191,8 +186,6 @@ def experiment(args):
                 continue
         print(exp.name)
         for case_obj in exp.conf:
-            print(case_obj.name)
-
             case_name = str(case_obj.name)
 
             # case_obj = manager.Case(exp)
