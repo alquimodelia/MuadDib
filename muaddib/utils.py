@@ -73,11 +73,14 @@ def startup(env_file=".env"):
 
     MLFLOW_STATE = os.getenv("MLFLOW_STATE", "off")
     os.environ["MLFLOW_STATE"] = MLFLOW_STATE
-    if MLFLOW_ADRESS is not None:
-        if MLFLOW_PORT is not None:
-            mlflow_startup(host=MLFLOW_ADRESS, port=MLFLOW_PORT)
-            os.environ["MLFLOW_STATE"] = "on"
+    if MLFLOW_STATE=="on":
+        if MLFLOW_ADRESS is not None:
+            if MLFLOW_PORT is not None:
+                mlflow_startup(host=MLFLOW_ADRESS, port=MLFLOW_PORT)
+                os.environ["MLFLOW_STATE"] = "on"
 
+
+    
 
 def mlflow_startup(host="127.0.0.1", port="8080"):
     # import mlflow

@@ -7,10 +7,8 @@ import json
 import os
 
 import alquitable
-import mlflow
 import numpy as np
 from keras_core.losses import MeanSquaredError
-from mlflow import MlflowClient
 
 from muaddib.shaihulud_utils import (
     load_json_dict,
@@ -18,7 +16,20 @@ from muaddib.shaihulud_utils import (
     write_dict_to_file,
 )
 
-client = MlflowClient(tracking_uri="http://127.0.0.1:8080")
+MLFLOW_STATE = os.getenv("MLFLOW_STATE", "off")
+
+if MLFLOW_STATE=="on":
+    import mlflow
+    from mlflow import MlflowClient
+    adress = "127.0.0.1"
+    port = "8080"
+    MLFLOW_ADRESS = os.getenv("MLFLOW_ADRESS", None)
+    MLFLOW_PORT = os.getenv("MLFLOW_PORT", None)
+    adress = adress or MLFLOW_ADRESS
+    port = port or MLFLOW_PORT
+
+    tracking_uri = f"http://{adress}:{port}"
+    client = MlflowClient(tracking_uri="http://127.0.0.1:8080")
 
 
 # TODO: make some lightweight version of the object, like just the case.__dict__ to get str values out of it
@@ -255,6 +266,8 @@ class SpiceEyes:
                 )
                 exp_obj = Experiment(conf_file=path_experiment)
                 dict_to_restore[key] = exp_obj
+            elif key=="model":
+                pass
 
         if "worthy_cases" in dict_to_restore:
             if len(dict_to_restore["worthy_cases"]) > 0:
@@ -380,6 +393,8 @@ class Case(SpiceEyes):
             if not isinstance(json_list, list):
                 json_list = [json_list]
             json_list = [f for f in json_list if "_conf" not in f]
+            json_list = [f for f in json_list if "score" not in f]
+
             if len(json_list) == 0:
                 json_list = None
             else:
@@ -424,6 +439,8 @@ class Case(SpiceEyes):
         self.fit_args = fit_args
 
     def set_mlflow(self):
+        if MLFLOW_STATE != "on":
+            return
         # Sets the current active experiment to the "Apple_Models" experiment and
         # returns the Experiment metadata
         # experiment = mlflow.set_experiment(self.experiment_name)
@@ -442,13 +459,14 @@ class Case(SpiceEyes):
         #     client = MlflowClient(tracking_uri="http://127.0.0.1:8080")
 
         # Start a new MLflow run
-        mlflow.set_tracking_uri("http://127.0.0.1:8080")
+        if MLFLOW_STATE=="on":
+            mlflow.set_tracking_uri("http://127.0.0.1:8080")
 
-        self.set_mlflow()
-        run = mlflow.start_run(run_name=self.name)
-        mlflow_callback = mlflow.keras_core.MLflowCallback(run)
-        if mlflow_callback not in self.fit_args["callbacks"]:
-            self.fit_args["callbacks"].append(mlflow_callback)
+            self.set_mlflow()
+            run = mlflow.start_run(run_name=self.name)
+            mlflow_callback = mlflow.keras_core.MLflowCallback(run)
+            if mlflow_callback not in self.fit_args["callbacks"]:
+                self.fit_args["callbacks"].append(mlflow_callback)
         print("-----------------------------------------------------------")
         print(f"Training Model {self.name} from {self.experiment_name}")
         self.train_fn(
@@ -457,8 +475,10 @@ class Case(SpiceEyes):
             compile_args=self.compile_args,
             model_name=self.name,
         )
-        # End the MLflow run
-        mlflow.end_run()
+        if MLFLOW_STATE=="on":
+
+            # End the MLflow run
+            mlflow.end_run()
 
     def validate_model(self):
         if len(self.list_freq_saves) == 0:
@@ -584,6 +604,9 @@ class Experiment(SpiceEyes):
         self.experiment_tags = default_tags
 
     def set_mlflow_experiment(self):
+        if MLFLOW_STATE != "on":
+            return
+
         mlflow_experiment = client.search_experiments(
             filter_string="name = '{0}'".format(self.name)
         )
