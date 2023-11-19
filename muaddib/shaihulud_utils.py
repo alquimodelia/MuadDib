@@ -17,6 +17,5 @@ def write_dict_to_file(dict_to_save, path):
         json.dump(dict_to_save, f)
     return
 
-
 def read_model_conf(path):
     return keras_core.models.model_from_json(load_file(path))
