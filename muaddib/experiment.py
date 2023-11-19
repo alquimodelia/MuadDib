@@ -12,15 +12,17 @@ from keras_core.losses import MeanSquaredError
 
 from muaddib.shaihulud_utils import (
     load_json_dict,
+    open_model,
     read_model_conf,
     write_dict_to_file,
 )
 
 MLFLOW_STATE = os.getenv("MLFLOW_STATE", "off")
 
-if MLFLOW_STATE=="on":
+if MLFLOW_STATE == "on":
     import mlflow
     from mlflow import MlflowClient
+
     adress = "127.0.0.1"
     port = "8080"
     MLFLOW_ADRESS = os.getenv("MLFLOW_ADRESS", None)
@@ -266,7 +268,7 @@ class SpiceEyes:
                 )
                 exp_obj = Experiment(conf_file=path_experiment)
                 dict_to_restore[key] = exp_obj
-            elif key=="model":
+            elif key == "model":
                 pass
 
         if "worthy_cases" in dict_to_restore:
@@ -342,7 +344,7 @@ class Case(SpiceEyes):
 
         self.case_work_path = os.path.join(self.work_folder, self.name)
         self.model_keras_path = os.path.join(
-            self.case_work_path, f"{self.name}.keras"
+            self.case_work_path, f"{self.model_name}.keras"
         )
         self.predict_score_path = os.path.join(
             self.case_work_path, "predict_score.json"
@@ -363,6 +365,7 @@ class Case(SpiceEyes):
             self.save(self.conf_file)
         self.set_fit_args()
         self.set_compile_args()
+        self.load_model()
 
     def set_compile_args(self):
         compile_args = {
@@ -392,6 +395,7 @@ class Case(SpiceEyes):
             json_list = glob.glob(qry)
             if not isinstance(json_list, list):
                 json_list = [json_list]
+            # TODO: Wtf dude? is this suposed to be the model_name.json? maybe not needed at all
             json_list = [f for f in json_list if "_conf" not in f]
             json_list = [f for f in json_list if "score" not in f]
 
@@ -438,6 +442,23 @@ class Case(SpiceEyes):
 
         self.fit_args = fit_args
 
+    def load_model(self):
+        custom_objects = {"loss": self.loss}
+        if self.last_epoch_path:
+            self.model = open_model(
+                self.last_epoch_path, custom_objects=custom_objects
+            )
+        elif isinstance(self.model, str):
+            if os.path.exists(self.model):
+                self.model = open_model(self.model)
+            else:
+                path_to_model_conf = os.path.join(
+                    os.getenv("MODELS_FOLDER"), f"{self.model}.json"
+                )
+                self.model = open_model(path_to_model_conf)
+        elif self.model is None:
+            self.model = open_model(self.model_keras_path)
+
     def set_mlflow(self):
         if MLFLOW_STATE != "on":
             return
@@ -459,7 +480,7 @@ class Case(SpiceEyes):
         #     client = MlflowClient(tracking_uri="http://127.0.0.1:8080")
 
         # Start a new MLflow run
-        if MLFLOW_STATE=="on":
+        if MLFLOW_STATE == "on":
             mlflow.set_tracking_uri("http://127.0.0.1:8080")
 
             self.set_mlflow()
@@ -475,8 +496,7 @@ class Case(SpiceEyes):
             compile_args=self.compile_args,
             model_name=self.name,
         )
-        if MLFLOW_STATE=="on":
-
+        if MLFLOW_STATE == "on":
             # End the MLflow run
             mlflow.end_run()
 

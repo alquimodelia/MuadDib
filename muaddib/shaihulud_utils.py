@@ -17,5 +17,18 @@ def write_dict_to_file(dict_to_save, path):
         json.dump(dict_to_save, f)
     return
 
+
 def read_model_conf(path):
     return keras_core.models.model_from_json(load_file(path))
+
+
+def open_model(path, custom_objects=None, compile=True, safe_mode=True):
+    if path.endswith("json"):
+        return read_model_conf(path)
+    elif path.endswith("keras"):
+        return keras_core.models.load_model(
+            path,
+            custom_objects=custom_objects,
+            compile=compile,
+            safe_mode=safe_mode,
+        )
