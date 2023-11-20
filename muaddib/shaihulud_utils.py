@@ -32,3 +32,18 @@ def open_model(path, custom_objects=None, compile=True, safe_mode=True):
             compile=compile,
             safe_mode=safe_mode,
         )
+
+
+def get_target_dict(target_variable):
+    final_targets = {}
+    multiple_target = target_variable.split("|")
+    for tag in multiple_target:
+        sorteg_tag = sorted(tag.split(";"))
+        if len(sorteg_tag) > 1:
+            tag_name = "".join([f.title()[:3] for f in sorteg_tag])
+        else:
+            tag_name = sorteg_tag[0]
+        if tag_name not in final_targets:
+            final_targets[tag_name] = sorteg_tag
+
+    return final_targets
