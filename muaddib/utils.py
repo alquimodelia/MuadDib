@@ -63,13 +63,16 @@ def startup(env_file=".env"):
     )
     os.environ["PROCESSED_FILE_PATH"] = PROCESSED_FILE_PATH
 
+    # One target var - Upward
+    # List of target variables, multiples variable - Upward;Downward
+    # List of experiment with diferent targest - Upward|Downward
+    # Mulitple choise, multiple experiment - Upward;Downward|Tender
+    #   one set of experiments with targets: Upward;Downward
+    #   another set of experiment with target: Tender
+    TARGET_VARIABLE = os.getenv("TARGET_VARIABLE")
+
     MLFLOW_ADRESS = os.getenv("MLFLOW_ADRESS", None)
     MLFLOW_PORT = os.getenv("MLFLOW_PORT", None)
-
-    # Set the MLFLOW_TRACKING_URI environment variable
-    os.environ["MLFLOW_TRACKING_URI"] = str(
-        PROJECT_FOLDER.joinpath("mlruns").as_uri()
-    )
 
     MLFLOW_STATE = os.getenv("MLFLOW_STATE", "off")
     os.environ["MLFLOW_STATE"] = MLFLOW_STATE
@@ -78,6 +81,10 @@ def startup(env_file=".env"):
             if MLFLOW_PORT is not None:
                 mlflow_startup(host=MLFLOW_ADRESS, port=MLFLOW_PORT)
                 os.environ["MLFLOW_STATE"] = "on"
+        # Set the MLFLOW_TRACKING_URI environment variable
+        os.environ["MLFLOW_TRACKING_URI"] = str(
+            PROJECT_FOLDER.joinpath("mlruns").as_uri()
+        )
 
 
 def mlflow_startup(host="127.0.0.1", port="8080"):

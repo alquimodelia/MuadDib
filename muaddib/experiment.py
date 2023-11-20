@@ -11,6 +11,7 @@ import numpy as np
 from keras_core.losses import MeanSquaredError
 
 from muaddib.shaihulud_utils import (
+    get_target_dict,
     load_json_dict,
     open_model,
     read_model_conf,
@@ -31,7 +32,7 @@ if MLFLOW_STATE == "on":
     port = port or MLFLOW_PORT
 
     tracking_uri = f"http://{adress}:{port}"
-    client = MlflowClient(tracking_uri="http://127.0.0.1:8080")
+    client = MlflowClient(tracking_uri=tracking_uri)
 
 
 # TODO: make some lightweight version of the object, like just the case.__dict__ to get str values out of it
@@ -85,6 +86,8 @@ def get_mirror_weight_loss(loss_name):
 class SpiceEyes:
     def __init__(
         self,
+        target_name=None,
+        target_variables=None,
         work_folder=None,
         name=None,
         epochs=200,
@@ -99,9 +102,13 @@ class SpiceEyes:
         keras_backend="torch",
         benchmark_score_file=None,
         conf_file=None,
+        DataManager=None,
     ):
         callbacks = callbacks or []
         metrics = metrics or ["root_mean_squared_error"]
+        self.target_name = target_name
+        self.target_variables = target_variables
+        self.DataManager = DataManager
 
         self.name = name
         self.work_folder = work_folder
@@ -268,8 +275,13 @@ class SpiceEyes:
                 )
                 exp_obj = Experiment(conf_file=path_experiment)
                 dict_to_restore[key] = exp_obj
-            elif key == "model":
-                pass
+            elif key == "DataManager":
+                from data.data_managers import ALL_DATA_MANAGERS
+
+                dict_to_restore[key] = ALL_DATA_MANAGERS[value]
+
+            # elif key == "model":
+            #     pass
 
         if "worthy_cases" in dict_to_restore:
             if len(dict_to_restore["worthy_cases"]) > 0:
@@ -492,6 +504,7 @@ class Case(SpiceEyes):
         print(f"Training Model {self.name} from {self.experiment_name}")
         self.train_fn(
             self.model,
+            self.DataManager,
             fit_args=self.fit_args,
             compile_args=self.compile_args,
             model_name=self.name,
@@ -1202,3 +1215,18 @@ class Experiment(SpiceEyes):
                 limit_by="benchmark",
                 column_to_group="case",
             )
+
+
+def ExperimentFactory(target_variable=None, **kwargs):
+    target_variable = target_variable or os.getenv("TARGET_VARIABLE")
+    # target_variable = "Upward;Downward"
+    # target_variable = "Upward|Downward"
+    # target_variable = "Upward;Downward|Tender"
+    # target_variable = "Upward;Downward|Tender|Upward;Downward"
+    # target_variable = "Upward;Downward|Upward;Downward"
+    # target_variable = "Upward;Downward|Tender|Upward;Downward"
+    final_targets = get_target_dict(target_variable)
+    for tag_name, targets in final_targets.items():
+        Experiment(target_name=tag_name, target_variables=targets, **kwargs)
+
+    return
