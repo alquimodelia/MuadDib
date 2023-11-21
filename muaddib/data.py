@@ -34,6 +34,7 @@ class DatasetManager:
         keras_backend="torch",
         process_fn=None,
         read_fn=None,
+        validation_fn=None,
         keras_sequence_cls=None,
     ):
         self.name = name
@@ -53,10 +54,13 @@ class DatasetManager:
 
         self.process_fn = process_fn
         self.read_fn = read_fn
+        self.validation_fn = validation_fn
 
         self.keras_sequence_cls = keras_sequence_cls
 
-    def start_data_manager(self):
+        self.setup()
+
+    def setup(self):
         self.processed_data_path = os.path.join(
             self.processed_data_folder, self.dataset_file_name
         )
@@ -76,22 +80,54 @@ class DatasetManager:
             from alquitable.generator import DataGenerator
 
             self.keras_sequence_cls = DataGenerator
+        self.validation_dataframe = self.validation_fn(
+            copy.deepcopy(self.dataframe),columns_Y=self.columns_Y
+        )
 
     def process_data(self, **kwargs):
         if self.process_complete:
             return
-        self.process_fn(**kwargs)
+        self.process_fn(y_columns=self.columns_Y,**kwargs)
         self.process_complete = True
 
     def read_data(self, **kwargs) -> pd.DataFrame:
-        self.read_fn(self.processed_data_path, **kwargs)
+        return self.read_fn(self.processed_data_path, **kwargs)
+
+    def validation_data(self, **kwargs):
+        return self.sequence_ravel(self.validation_dataframe, frac=1, **kwargs)
+
+    def benchmark_data(self, **kwargs):
+        # TODO: wtf, too specific for this case....
+        (
+            validation_dataset_X,
+            validation_dataset_Y,
+            _,
+            _,
+        ) = self.validation_data(skiping_step=24)
+
+        alloc_dict = {
+            "UpwardUsedSecondaryReserveEnergy": "SecondaryReserveAllocationAUpward",
+            "DownwardUsedSecondaryReserveEnergy": "SecondaryReserveAllocationADownward",
+        }
+        alloc_column = []
+        for y in self.columns_Y:
+            allo = alloc_dict[y]
+            alloc_column.append(allo)
+
+        validation_benchmark = (
+            self.validation_dataframe[alloc_column]
+            .iloc[self.X_timeseries : -self.Y_timeseries]
+            .values.reshape(validation_dataset_Y.shape)
+        )
+
+        return validation_benchmark
 
     def keras_sequence(self, **kwargs) -> keras_core.utils.Sequence:
         return self.keras_sequence_cls(**kwargs)
 
-    def sequence_ravel(self, frac=1, **kwargs):
+    def sequence_ravel(self, dataframe_to_use, frac=1, **kwargs):
         data_generator = self.keras_sequence_cls(
-            dataset=copy.deepcopy(self.dataframe),
+            dataset=copy.deepcopy(dataframe_to_use),
             time_moving_window_size_X=self.X_timeseries,
             time_moving_window_size_Y=self.Y_timeseries,
             y_columns=self.columns_Y,
@@ -120,9 +156,12 @@ class DatasetManager:
             test_dataset_Y,
         )
 
+    def training_data(self, frac=1):
+        return self.sequence_ravel(self.dataframe, frac=frac)
+
 
 def DatasetFactory(target_variable=None, name=None, **kwargs):
-    target_variable = target_variable or os.getenv("TARGET_VARIABLE")
+    target_variable = target_variable or TARGET_VARIABLE
     # target_variable = "Upward;Downward"
     # target_variable = "Upward|Downward"
     # target_variable = "Upward;Downward|Tender"
@@ -132,12 +171,12 @@ def DatasetFactory(target_variable=None, name=None, **kwargs):
     final_targets = get_target_dict(target_variable)
     dataset_manager_dict = {}
     for tag_name, targets in final_targets.items():
-        if not isinstance(targets, list):
-            targets = [targets]
+        targets_to_use = targets.copy()
+        if not isinstance(targets_to_use, list):
+            targets_to_use = [targets_to_use]
         name_to_use = name
         if name is None:
             name_to_use = tag_name
-        dataman = DatasetFactory(columns_Y=targets, name=name_to_use, **kwargs)
+        dataman = DatasetManager(columns_Y=targets_to_use, name=name_to_use, **kwargs)
         dataset_manager_dict[tag_name] = dataman
-
     return dataset_manager_dict
