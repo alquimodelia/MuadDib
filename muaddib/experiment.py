@@ -623,7 +623,7 @@ class Experiment(SpiceEyes):
         self.description = description
         self.set_tags(experiment_tags)
         # self.set_mlflow_experiment()
-        # self.setup()
+        self.setup()
         # self.experiment_configuration(models_dict)
 
     def set_tags(self, experiment_tags=None):
@@ -653,7 +653,9 @@ class Experiment(SpiceEyes):
     def setup(
         self,
     ):
-        self.case_work_path = os.path.join(self.work_folder, self.name)
+        self.case_work_path = os.path.join(
+            self.work_folder, self.DataManager.name, self.name
+        )
         self.predict_score_path = os.path.join(
             self.case_work_path, "predict_score.json"
         )

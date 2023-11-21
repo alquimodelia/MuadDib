@@ -10,7 +10,7 @@ from muaddib.commands import (
     start,
     train,
     train_case,
-    train_on_experiment_loop,
+    train_on_experiment_loop,process_data
 )
 
 log = logging.getLogger(__name__)
@@ -45,6 +45,11 @@ def get_arg_parser():
         help="Name of the template to use for the new project",
     )
     parser_new.add_argument("project_name", help="Name of the new project")
+
+    subparsers.add_parser(
+        "process_data", help="Create a new project based on a template"
+    )
+
 
     parser_train = subparsers.add_parser("train", help="start help")
     parser_train.add_argument("--model_to_train", help="Model to train")
@@ -110,6 +115,7 @@ COMMANDS = {
     "init": init,
     "experiment": experiment,
     "train_case": train_case,
+    "process_data":process_data,
     "start": start,
     "plots": handle_plots,
     "run": handle_run,

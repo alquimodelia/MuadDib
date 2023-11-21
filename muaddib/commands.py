@@ -34,28 +34,35 @@ def new(args):
     TEMPLATE_TO_BUILD = (
         "https://github.com/alquimodelia/arrakis-coockiecutter.git"
     )
+    # For local testing, remove when updating
+    TEMPLATE_TO_BUILD = (
+        "/home/joao/Documentos/repos/arrakis-coockiecutter/"
+    )
+
+
     directory = (
         args.template_name
     )  # specify the directory inside the repository
     checkout = (
         None  # specify the tag, branch, or commit to checkout, if necessary
     )
-
+    cookiecutter_dir = os.path.join(TEMPLATE_TO_BUILD, directory)
     with TemporaryDirectory() as tmpdir:
-        try:
-            cookiecutter_dir, _ = determine_repo_dir(
-                template=TEMPLATE_TO_BUILD,
-                abbreviations={},
-                clone_to_dir=Path(tmpdir).resolve(),
-                checkout=checkout,
-                no_input=True,
-                directory=directory,
-            )
-        except Exception as exc:
-            raise Exception(
-                f"Failed to generate project: could not clone repository at {TEMPLATE_TO_BUILD}."
-            ) from exc
-
+        # try:
+        #     cookiecutter_dir, _ = determine_repo_dir(
+        #         template=TEMPLATE_TO_BUILD,
+        #         abbreviations={},
+        #         clone_to_dir=Path(tmpdir).resolve(),
+        #         checkout=checkout,
+        #         no_input=False,
+        #         directory=directory,
+        #     )
+        # except Exception as exc:
+        #     print(f"Failed to generate project: could not clone repository at {TEMPLATE_TO_BUILD}.")
+        #     # raise Exception(
+        #     #     f"Failed to generate project: could not clone repository at {TEMPLATE_TO_BUILD}."
+        #     # ) from exc
+        print("fds", cookiecutter_dir)
         project_path = cookiecutter(
             template=str(cookiecutter_dir),
             no_input=True,
@@ -77,12 +84,18 @@ def start(args):
 
 
 def init(args):
-    start(args)
+    startup()
     subprocess.run(["pip", "install", "-e", "."])
 
 
 def process_data(args):
-    pass
+    startup()
+    global ALL_DATA_MANAGERS
+    from data.definitions import ALL_DATA_MANAGERS
+
+    for dataman in ALL_DATA_MANAGERS.values():
+        dataman.process_data()
+
 
 
 def process_models(args):
