@@ -11,6 +11,7 @@ from muaddib.commands import (
     start,
     train,
     train_case,
+    train_on_call,
     train_on_experiment_loop,
 )
 
@@ -71,6 +72,11 @@ def get_arg_parser():
         "--experiment", help="Model to train"
     )
 
+    parser_train_on_call = subparsers.add_parser(
+        "train_on_call", help="start help"
+    )
+    parser_train_on_call.add_argument("--case", help="Model to train")
+    parser_train_on_call.add_argument("--experiment", help="Model to train")
     subparsers.add_parser("init", help="start help")
     subparsers.add_parser("experiment", help="start help")
 
@@ -120,6 +126,7 @@ COMMANDS = {
     "plots": handle_plots,
     "run": handle_run,
     "train_on_experiment_loop": train_on_experiment_loop,
+    "train_on_call": train_on_call,
 }
 
 
