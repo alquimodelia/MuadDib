@@ -36,6 +36,7 @@ class DatasetManager:
         read_fn=None,
         validation_fn=None,
         keras_sequence_cls=None,
+        sequence_args=None,
     ):
         self.name = name
         self.work_folder = work_folder
@@ -57,6 +58,7 @@ class DatasetManager:
         self.validation_fn = validation_fn
 
         self.keras_sequence_cls = keras_sequence_cls
+        self.sequence_args = sequence_args or {}
 
         self.setup()
 
@@ -81,20 +83,22 @@ class DatasetManager:
 
             self.keras_sequence_cls = DataGenerator
         self.validation_dataframe = self.validation_fn(
-            copy.deepcopy(self.dataframe),columns_Y=self.columns_Y
+            copy.deepcopy(self.dataframe), columns_Y=self.columns_Y
         )
 
     def process_data(self, **kwargs):
         if self.process_complete:
             return
-        self.process_fn(y_columns=self.columns_Y,**kwargs)
+        self.process_fn(y_columns=self.columns_Y, **kwargs)
         self.process_complete = True
 
     def read_data(self, **kwargs) -> pd.DataFrame:
         return self.read_fn(self.processed_data_path, **kwargs)
 
     def validation_data(self, **kwargs):
-        return self.sequence_ravel(self.validation_dataframe, frac=1, **kwargs)
+        return self.sequence_ravel(
+            copy.deepcopy(self.validation_dataframe), frac=1, **kwargs
+        )
 
     def benchmark_data(self, **kwargs):
         # TODO: wtf, too specific for this case....
@@ -103,7 +107,7 @@ class DatasetManager:
             validation_dataset_Y,
             _,
             _,
-        ) = self.validation_data(skiping_step=24)
+        ) = self.validation_data(skiping_step=24, train_features_folga=24)
 
         alloc_dict = {
             "UpwardUsedSecondaryReserveEnergy": "SecondaryReserveAllocationAUpward",
@@ -126,12 +130,14 @@ class DatasetManager:
         return self.keras_sequence_cls(**kwargs)
 
     def sequence_ravel(self, dataframe_to_use, frac=1, **kwargs):
+        kwargs_to_use = copy.deepcopy(self.sequence_args)
+        kwargs_to_use.update(kwargs)
         data_generator = self.keras_sequence_cls(
             dataset=copy.deepcopy(dataframe_to_use),
             time_moving_window_size_X=self.X_timeseries,
             time_moving_window_size_Y=self.Y_timeseries,
             y_columns=self.columns_Y,
-            **kwargs
+            **kwargs_to_use
         )
 
         X, Y = [], []
@@ -156,8 +162,8 @@ class DatasetManager:
             test_dataset_Y,
         )
 
-    def training_data(self, frac=1):
-        return self.sequence_ravel(self.dataframe, frac=frac)
+    def training_data(self, frac=1, **kwargs):
+        return self.sequence_ravel(self.dataframe, frac=frac, **kwargs)
 
 
 def DatasetFactory(target_variable=None, name=None, **kwargs):
@@ -177,6 +183,8 @@ def DatasetFactory(target_variable=None, name=None, **kwargs):
         name_to_use = name
         if name is None:
             name_to_use = tag_name
-        dataman = DatasetManager(columns_Y=targets_to_use, name=name_to_use, **kwargs)
+        dataman = DatasetManager(
+            columns_Y=targets_to_use, name=name_to_use, **kwargs
+        )
         dataset_manager_dict[tag_name] = dataman
     return dataset_manager_dict
