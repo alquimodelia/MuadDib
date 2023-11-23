@@ -35,10 +35,7 @@ def new(args):
         "https://github.com/alquimodelia/arrakis-coockiecutter.git"
     )
     # For local testing, remove when updating
-    TEMPLATE_TO_BUILD = (
-        "/home/joao/Documentos/repos/arrakis-coockiecutter/"
-    )
-
+    TEMPLATE_TO_BUILD = "/home/joao/Documentos/repos/arrakis-coockiecutter/"
 
     directory = (
         args.template_name
@@ -80,8 +77,6 @@ def start(args):
     global experiments_dict
     from experiments.experiment import experiments_dict, experiments_list
 
-    print("uipiiiiiii", experiments_dict)
-
 
 def init(args):
     startup()
@@ -95,7 +90,6 @@ def process_data(args):
 
     for dataman in ALL_DATA_MANAGERS.values():
         dataman.process_data()
-
 
 
 def process_models(args):
@@ -153,6 +147,8 @@ def train_on_experiment_loop(args):
     experiment_name_train = args.experiment
     case_name_train = args.case
     for experiment_name, exp in experiments_dict.items():
+        print("Train on experiment loop, in the fokccer")
+        print(experiment_name)
         exp.setup()
         print("-------------------------------------------------------------")
         for case_obj in exp.conf:
@@ -184,12 +180,7 @@ def train_on_experiment_loop(args):
 def experiment(args):
     start(args)
     name = getattr(args, "name", None)
-
-    # manager = BaseManager()
-    # manager.start()
     for experiment_name, exp in experiments_dict.items():
-        # Create a proxy for the ExperimentClass instance
-        # exp = manager.Experiment(exp)
         exp.setup()
         print("-------------------------------------------------------------")
         # if exp.complete:
@@ -201,20 +192,9 @@ def experiment(args):
         for case_obj in exp.conf:
             case_name = str(case_obj.name)
 
-            # case_obj = manager.Case(exp)
-            # if not case_obj.complete:
-            #     with Pool(processes=1) as pool:
-            #         argst = Namespace(experiment=experiment_name, case=case_name)
-            #         # pool.apply(train_model_process, args=(case_obj,))
-            #         pool.apply(train_case, args=(argst,))
-
             # case_obj.validate_model()
 
             if not case_obj.complete:
-                # command = (
-                #     f"KERAS_BACKEND={case_obj.keras_backend}"
-                #     f" muaddib train_case --experiment={experiment_name} --case={case_name}"
-                # )
                 command = (
                     f"KERAS_BACKEND={case_obj.keras_backend}"
                     f" muaddib train_on_experiment_loop --experiment={experiment_name} --case={case_name}"

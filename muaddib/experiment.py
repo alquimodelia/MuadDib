@@ -103,6 +103,8 @@ class SpiceEyes:
         benchmark_score_file=None,
         conf_file=None,
         DataManager=None,
+        get_models_on_experiment_fn=None,
+        get_models_args=None,
     ):
         callbacks = callbacks or []
         metrics = metrics or ["root_mean_squared_error"]
@@ -241,17 +243,26 @@ class SpiceEyes:
                 ]
             elif key == "previous_cases":
                 previous_cases = []
-                experiments_in_list = [f.split(":")[0] for f in value]
+                experiments_in_list = []
+                for f in value:
+                    target_name, exp_name, case_name = f.split(":")
+                    experiments_in_list.append(f"{target_name}:{exp_name}")
+
                 experiments_in_list = np.unique(experiments_in_list)
                 cases_per_experiment = {}
                 for exp in experiments_in_list:
-                    cases_per_experiment[exp] = [
-                        f.split(":")[1]
-                        for f in value
-                        if f.split(":")[0] == exp
-                    ]
+                    cases_per_experiment[exp] = []
+                    for f in value:
+                        target_name, exp_name, case_name = f.split(":")
+                        if f"{target_name}:{exp_name}" == exp:
+                            cases_per_experiment[exp].append(case_name)
+                    folder_target, folder_exp = exp.split(":")
+
                     path_experiment = os.path.join(
-                        os.getenv("EXPERIMENT_FOLDER"), exp, "exp_conf.json"
+                        os.getenv("EXPERIMENT_FOLDER"),
+                        folder_target,
+                        folder_exp,
+                        "exp_conf.json",
                     )
                     exp_obj = Experiment(conf_file=path_experiment)
                     previous_cases += [
@@ -270,13 +281,17 @@ class SpiceEyes:
                 else:
                     dict_to_restore[key] = {}
             elif key == "previous_experiment":
+                folder_target, folder_exp = value.split(":")
                 path_experiment = os.path.join(
-                    os.getenv("EXPERIMENT_FOLDER"), value, "exp_conf.json"
+                    os.getenv("EXPERIMENT_FOLDER"),
+                    folder_target,
+                    folder_exp,
+                    "exp_conf.json",
                 )
                 exp_obj = Experiment(conf_file=path_experiment)
                 dict_to_restore[key] = exp_obj
             elif key == "DataManager":
-                from data.data_managers import ALL_DATA_MANAGERS
+                from data.definitions import ALL_DATA_MANAGERS
 
                 dict_to_restore[key] = ALL_DATA_MANAGERS[value]
 
@@ -542,7 +557,10 @@ class Case(SpiceEyes):
                 # TODO: set env varibale for this with command input
                 if not validation_done:
                     predict_score = self.validation_fn(
-                        model_path=freq_save, model_name=self.name, epoch=epoch
+                        datamanager=self.DataManager,
+                        model_path=freq_save,
+                        model_name=self.name,
+                        epoch=epoch,
                     )
                 else:
                     if bool_score:
@@ -612,18 +630,26 @@ class Experiment(SpiceEyes):
         experiment_tags=None,
         previous_experiment=None,
         previous_cases=None,
+        get_models_on_experiment_fn=None,
+        get_models_args=None,
+        conf_file=None,
         **kwargs,
     ):
         self.models_dict = models_dict
         self.previous_experiment = previous_experiment
         self.previous_cases = previous_cases
         self.best_result = None
-
+        self.get_models_on_experiment_fn = get_models_on_experiment_fn
+        self.get_models_args = get_models_args or {}
         super().__init__(name=name, work_folder=work_folder, **kwargs)
         self.description = description
         self.set_tags(experiment_tags)
+        if conf_file is not None:
+            if os.path.exists(conf_file):
+                self.__dict__.update(self.load(conf_file))
         # self.set_mlflow_experiment()
-        self.setup()
+        if not self.previous_experiment:
+            self.setup()
         # self.experiment_configuration(models_dict)
 
     def set_tags(self, experiment_tags=None):
@@ -653,8 +679,9 @@ class Experiment(SpiceEyes):
     def setup(
         self,
     ):
+        folder_name = self.name.split(":")[-1]
         self.case_work_path = os.path.join(
-            self.work_folder, self.DataManager.name, self.name
+            self.work_folder, self.DataManager.name, folder_name
         )
         self.predict_score_path = os.path.join(
             self.case_work_path, "predict_score.json"
@@ -665,9 +692,15 @@ class Experiment(SpiceEyes):
 
         self.set_mlflow_experiment()
         self.conf_file = os.path.join(self.case_work_path, "exp_conf.json")
+        # TODO: dont even know, but the loading needs to change
         if os.path.exists(self.conf_file):
             self.__dict__.update(self.load(self.conf_file))
         else:
+            if self.get_models_on_experiment_fn is not None:
+                self.models_dict = self.get_models_on_experiment_fn(
+                    self.previous_experiment.worthy_models,
+                    input_args=self.get_models_args,
+                )
             self.experiment_configuration(self.models_dict)
             self.save(self.conf_file)
 
@@ -704,6 +737,7 @@ class Experiment(SpiceEyes):
         weight=None,
         previous_benchmark=None,
         name=None,
+        previous_case=None,
     ):
         case_list = []
         metrics = metrics or self.metrics
@@ -764,6 +798,7 @@ class Experiment(SpiceEyes):
                 validation_fn=self.validation_fn,
                 experiment_name=self.name,
                 previous_benchmark=previous_benchmark,
+                DataManager=self.DataManager,
                 name=name,
             )
             case_list.append(case_obj)
@@ -820,6 +855,7 @@ class Experiment(SpiceEyes):
                 validation_fn=self.validation_fn,
                 experiment_name=self.name,
                 previous_benchmark=previous_benchmark,
+                DataManager=self.DataManager,
             )
             case_list.append(case_obj)
             self.complete = self.complete & case_obj.complete
@@ -882,6 +918,7 @@ class Experiment(SpiceEyes):
                     # weight=previous_case_obj.weight
                     previous_benchmark=previous_benchmark,
                     name=previous_case_obj.name,
+                    previous_case=previous_case_obj,
                     **kwargs,
                 )
                 for case_obj in case_conf_list:
@@ -1219,7 +1256,16 @@ class Experiment(SpiceEyes):
             )
 
 
-def ExperimentFactory(target_variable=None, **kwargs):
+def ExperimentFactory(
+    target_variable=None,
+    previous_experiment_dict=None,
+    name=None,
+    get_models_on_experiment_fn=None,
+    get_models_args=None,
+    **kwargs,
+):
+    from data.definitions import ALL_DATA_MANAGERS
+
     target_variable = target_variable or os.getenv("TARGET_VARIABLE")
     # target_variable = "Upward;Downward"
     # target_variable = "Upward|Downward"
@@ -1228,7 +1274,31 @@ def ExperimentFactory(target_variable=None, **kwargs):
     # target_variable = "Upward;Downward|Upward;Downward"
     # target_variable = "Upward;Downward|Tender|Upward;Downward"
     final_targets = get_target_dict(target_variable)
+    experiment_dict = {}
     for tag_name, targets in final_targets.items():
-        Experiment(target_name=tag_name, target_variables=targets, **kwargs)
+        previous_experiment = None
+        exp_name = f"{tag_name}:{name}"
+        print("CALING yhe focjer rksljfdkjdsklfmlk")
+        print(exp_name)
+        if previous_experiment_dict is not None:
+            # TODO: change this getting of the previous name
+            last_arch_name = list(previous_experiment_dict.keys())[0].split(
+                ":"
+            )[-1]
+            last_tag_name = f"{tag_name}:{last_arch_name}"
+            previous_experiment = previous_experiment_dict[last_tag_name]
 
-    return
+        dataman = ALL_DATA_MANAGERS[tag_name]
+        exp = Experiment(
+            target_name=tag_name,
+            target_variables=targets,
+            DataManager=dataman,
+            previous_experiment=previous_experiment,
+            name=exp_name,
+            get_models_on_experiment_fn=get_models_on_experiment_fn,
+            get_models_args=get_models_args,
+            **kwargs,
+        )
+        experiment_dict[exp_name] = exp
+
+    return experiment_dict
