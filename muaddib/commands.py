@@ -141,6 +141,18 @@ def train_model_process(case_obj):
         case_obj.train_model()
 
 
+def train_on_call(args):
+    start(args)
+    experiment_name_train = args.experiment
+    case_name_train = args.case
+    exp_obj = experiments_dict[experiment_name_train]
+    exp_obj.setup()
+    case_obj = exp_obj.study_cases[case_name_train]
+    if not case_obj.complete:
+        case_obj.train_model()
+    case_obj.validate_model()
+
+
 # TODO: chane this, this is garbage
 def train_on_experiment_loop(args):
     start(args)
@@ -154,8 +166,8 @@ def train_on_experiment_loop(args):
         for case_obj in exp.conf:
             if experiment_name == experiment_name_train:
                 case_name = str(case_obj.name)
-                if len(case_name.split("_")) > 4:
-                    continue
+                # if len(case_name.split("_")) > 4:
+                #     continue
                 if "252" in case_obj.name:
                     continue
                 if case_obj.name.endswith("_adam"):
@@ -181,7 +193,7 @@ def experiment(args):
     start(args)
     name = getattr(args, "name", None)
     for experiment_name, exp in experiments_dict.items():
-        exp.setup()
+        # exp.setup()
         print("-------------------------------------------------------------")
         # if exp.complete:
         # continue
@@ -189,15 +201,21 @@ def experiment(args):
             if name != experiment_name:
                 continue
         print(exp.name)
+        if not getattr(exp, "conf", None):
+            exp.setup()
         for case_obj in exp.conf:
             case_name = str(case_obj.name)
 
             # case_obj.validate_model()
 
             if not case_obj.complete:
+                # command = (
+                #     f"KERAS_BACKEND={case_obj.keras_backend}"
+                #     f" muaddib train_on_experiment_loop --experiment={experiment_name} --case={case_name}"
+                # )
                 command = (
                     f"KERAS_BACKEND={case_obj.keras_backend}"
-                    f" muaddib train_on_experiment_loop --experiment={experiment_name} --case={case_name}"
+                    f" muaddib train_on_call --experiment={experiment_name} --case={case_name}"
                 )
                 open_new_console(command)
             case_obj.validate_model()
