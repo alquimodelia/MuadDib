@@ -209,14 +209,14 @@ def experiment(args):
             # case_obj.validate_model()
 
             if not case_obj.complete:
-                # command = (
-                #     f"KERAS_BACKEND={case_obj.keras_backend}"
-                #     f" muaddib train_on_experiment_loop --experiment={experiment_name} --case={case_name}"
-                # )
                 command = (
                     f"KERAS_BACKEND={case_obj.keras_backend}"
-                    f" muaddib train_on_call --experiment={experiment_name} --case={case_name}"
+                    f" muaddib train_on_experiment_loop --experiment={experiment_name} --case={case_name}"
                 )
+                # command = (
+                #     f"KERAS_BACKEND={case_obj.keras_backend}"
+                #     f" muaddib train_on_call --experiment={experiment_name} --case={case_name}"
+                # )
                 open_new_console(command)
             case_obj.validate_model()
         exp.validate_experiment()

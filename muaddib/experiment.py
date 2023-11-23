@@ -19,6 +19,7 @@ from muaddib.shaihulud_utils import (
 )
 
 MLFLOW_STATE = os.getenv("MLFLOW_STATE", "off")
+VALIDATION_TARGET = os.getenv("VALIDATION_TARGET", "bscore")
 
 if MLFLOW_STATE == "on":
     import mlflow
@@ -225,6 +226,7 @@ class SpiceEyes:
                 ]
             elif key == "study_cases":
                 # Load a Case
+                # TODO: there are problems when loading a case that was deleted, it does not do it again.
                 dict_to_restore[key] = {
                     k: Case(conf_file=v) for k, v in value.items()
                 }
@@ -325,6 +327,7 @@ class Case(SpiceEyes):
         model_conf_name="model_conf.json",
         experiment_name="",
         previous_benchmark=None,
+        conf_file=None,
         **kwargs,
     ):
         self.case_name = case_name
@@ -340,6 +343,10 @@ class Case(SpiceEyes):
         self.previous_benchmark = previous_benchmark
         self.worthy = False
         super().__init__(work_folder=work_folder, **kwargs)
+        if conf_file is not None:
+            if os.path.exists(conf_file):
+                self.__dict__.update(self.load(conf_file))
+
         self.setup()
 
     def check_trained_epochs(self):
@@ -587,15 +594,19 @@ class Case(SpiceEyes):
         os.makedirs(case_report_path, exist_ok=True)
         case_results = pd.DataFrame(self.predict_score)
 
-        COLUMN_TO_SORT_BY = "bscore"
+        COLUMN_TO_SORT_BY = VALIDATION_TARGET
         ascending_to_sort = False
         # All results, ordered by epoch
         case_results.sort_values(by="epoch", inplace=True)
         self.best_result = max(case_results[COLUMN_TO_SORT_BY])
         if self.previous_benchmark:
             self.worthy = self.best_result >= self.previous_benchmark
-        path_schema_csv = os.path.join(case_report_path, "case_results.csv")
-        path_schema_tex = os.path.join(case_report_path, "case_results.tex")
+        path_schema_csv = os.path.join(
+            case_report_path, f"case_results_{VALIDATION_TARGET}.csv"
+        )
+        path_schema_tex = os.path.join(
+            case_report_path, f"case_results_{VALIDATION_TARGET}.tex"
+        )
         case_results.sort_values(
             by=COLUMN_TO_SORT_BY, ascending=ascending_to_sort, inplace=True
         )
@@ -608,10 +619,12 @@ class Case(SpiceEyes):
                 path_schema_tex, escape=False, index=False, float_format="%.2f"
             )
             path_schema_csv = os.path.join(
-                case_report_path, "case_results_complete.csv"
+                case_report_path,
+                f"case_results_{VALIDATION_TARGET}_complete.csv",
             )
             path_schema_tex = os.path.join(
-                case_report_path, "case_results_complete.tex"
+                case_report_path,
+                f"case_results_{VALIDATION_TARGET}_complete.tex",
             )
 
         case_results.to_csv(path_schema_csv, index=False)
@@ -964,14 +977,14 @@ class Experiment(SpiceEyes):
 
         case_results = pd.DataFrame(self.predict_score)
 
-        COLUMN_TO_SORT_BY = "bscore"
+        COLUMN_TO_SORT_BY = VALIDATION_TARGET
         ascending_to_sort = False
         # All results, ordered by epoch
         path_schema_csv = os.path.join(
-            case_report_path, "experiment_results.csv"
+            case_report_path, f"experiment_results_{VALIDATION_TARGET}.csv"
         )
         path_schema_tex = os.path.join(
-            case_report_path, "experiment_results.tex"
+            case_report_path, f"experiment_results_{VALIDATION_TARGET}.tex"
         )
         case_results.sort_values(
             by=COLUMN_TO_SORT_BY, ascending=ascending_to_sort, inplace=True
@@ -985,10 +998,12 @@ class Experiment(SpiceEyes):
                 path_schema_tex, escape=False, index=False, float_format="%.2f"
             )
             path_schema_csv = os.path.join(
-                case_report_path, "experiment_results_complete.csv"
+                case_report_path,
+                f"experiment_results_{VALIDATION_TARGET}_complete.csv",
             )
             path_schema_tex = os.path.join(
-                case_report_path, "experiment_results_complete.tex"
+                case_report_path,
+                f"experiment_results_{VALIDATION_TARGET}_complete.tex",
             )
 
         case_results.to_csv(path_schema_csv, index=False)
@@ -1007,7 +1022,8 @@ class Experiment(SpiceEyes):
         ].sort_values(by=COLUMN_TO_SORT_BY, ascending=ascending_to_sort)
 
         path_schema_tex = os.path.join(
-            case_report_path, "experiment_results_best_of_each.tex"
+            case_report_path,
+            f"experiment_results_{VALIDATION_TARGET}_best_of_each.tex",
         )
 
         best_scores.to_latex(
@@ -1028,7 +1044,8 @@ class Experiment(SpiceEyes):
             by=COLUMN_TO_SORT_BY, ascending=ascending_to_sort, inplace=True
         )
         path_schema_tex = os.path.join(
-            case_report_path, "experiment_results_best3.tex"
+            case_report_path,
+            f"experiment_results_{VALIDATION_TARGET}_best3.tex",
         )
 
         second_third_best_scores.to_latex(
@@ -1038,13 +1055,14 @@ class Experiment(SpiceEyes):
         no_missin_scores = case_results[case_results["bscore m"] >= 0]
         no_missin_scores = no_missin_scores[no_missin_scores["bscore s"] >= 0]
         no_missin_scores = no_missin_scores.dropna().sort_values(
-            by="bscore", ascending=False
+            by=VALIDATION_TARGET, ascending=False
         )
-        if len(no_missin_scores["bscore"]) > 0:
-            self.best_result = max(no_missin_scores["bscore"])
+        if len(no_missin_scores[VALIDATION_TARGET]) > 0:
+            self.best_result = max(no_missin_scores[VALIDATION_TARGET])
 
         path_schema_tex = os.path.join(
-            case_report_path, "experiment_results_best_10_under_benchmark.tex"
+            case_report_path,
+            f"experiment_results_{VALIDATION_TARGET}_best_10_under_benchmark.tex",
         )
 
         no_missin_scores.head(10).to_latex(
@@ -1052,7 +1070,8 @@ class Experiment(SpiceEyes):
         )
 
         path_schema_tex = os.path.join(
-            case_report_path, "experiment_results_best_under_benchmark.tex"
+            case_report_path,
+            f"experiment_results_{VALIDATION_TARGET}_best_under_benchmark.tex",
         )
 
         no_missin_scores.to_latex(
@@ -1068,14 +1087,14 @@ class Experiment(SpiceEyes):
             ]
 
             no_missin_scores2 = no_missin_scores2.dropna().sort_values(
-                by="bscore", ascending=False
+                by=VALIDATION_TARGET, ascending=False
             )
-            if len(no_missin_scores2["bscore"]) > 0:
-                self.best_result = max(no_missin_scores2["bscore"])
+            if len(no_missin_scores2[VALIDATION_TARGET]) > 0:
+                self.best_result = max(no_missin_scores2[VALIDATION_TARGET])
 
             path_schema_tex = os.path.join(
                 case_report_path,
-                "experiment_results_best_10_under_benchmarkminu50epochs.tex",
+                f"experiment_results_{VALIDATION_TARGET}_best_10_under_benchmarkminu50epochs.tex",
             )
 
             no_missin_scores2.head(10).to_latex(
@@ -1084,7 +1103,7 @@ class Experiment(SpiceEyes):
 
             path_schema_tex = os.path.join(
                 case_report_path,
-                "experiment_results_best_under_benchmark_minu50epochs.tex",
+                f"experiment_results_{VALIDATION_TARGET}_best_under_benchmark_minu50epochs.tex",
             )
 
             no_missin_scores2.to_latex(
@@ -1094,14 +1113,14 @@ class Experiment(SpiceEyes):
 
         if self.previous_experiment:
             better_scores = no_missin_scores[
-                no_missin_scores["bscore"]
+                no_missin_scores[VALIDATION_TARGET]
                 >= self.previous_experiment.best_result
             ]
         if len(better_scores) > 0:
             unique_values_list = better_scores["name"].unique().tolist()
             path_schema_tex = os.path.join(
                 case_report_path,
-                "experiment_results_better_than_previous_10_under_benchmark.tex",
+                f"experiment_results_{VALIDATION_TARGET}_better_than_previous_10_under_benchmark.tex",
             )
 
             better_scores.head(10).to_latex(
@@ -1110,13 +1129,13 @@ class Experiment(SpiceEyes):
 
             path_schema_tex = os.path.join(
                 case_report_path,
-                "experiment_results_better_than_previous_under_benchmark.tex",
+                f"experiment_results_{VALIDATION_TARGET}_better_than_previous_under_benchmark.tex",
             )
 
             better_scores.to_latex(
                 path_schema_tex, escape=False, index=False, float_format="%.2f"
             )
-            self.best_result = max(better_scores["bscore"])
+            self.best_result = max(better_scores[VALIDATION_TARGET])
 
         else:
             unique_values_list = no_missin_scores["name"].unique().tolist()
@@ -1139,11 +1158,12 @@ class Experiment(SpiceEyes):
             )
 
         no_missin_scores.sort_values(
-            by="bscore", ascending=False, inplace=True
+            by=VALIDATION_TARGET, ascending=False, inplace=True
         )
 
         path_schema_tex = os.path.join(
-            case_report_path, "experiment_results_best3_under_benchmark.tex"
+            case_report_path,
+            f"experiment_results_{VALIDATION_TARGET}_best3_under_benchmark.tex",
         )
 
         no_missin_scores.to_latex(
@@ -1160,15 +1180,18 @@ class Experiment(SpiceEyes):
     def visualize_report(self):
         # TODO: change this path thingys
         folder_figures = self.case_work_path.replace("experiments", "reports")
-        # TODO: get this from an envi
+
+        METRICS_TO_CHECK = os.getenv("METRICS_TO_CHECK", None)
         metrics_to_check = None
+        if METRICS_TO_CHECK:
+            metrics_to_check = METRICS_TO_CHECK.split("|")
+
         benchmark_score = {}
 
         if os.path.exists(self.benchmark_score_file):
-            with open(self.benchmark_score_file) as f:
-                benchmark_score = json.load(f)
+            load_json_dict(self.benchmark_score_file)
 
-        figure_name = "experiment_results.png"
+        figure_name = f"experiment_results_{VALIDATION_TARGET}.png"
         self.visualize_report_fn(
             self.predict_score,
             metrics_to_check=metrics_to_check,
@@ -1195,7 +1218,7 @@ class Experiment(SpiceEyes):
         )
 
         metrics_to_check = ["alloc missing", "alloc surplus"]
-        figure_name = "experiment_results_redux.png"
+        figure_name = f"experiment_results_{VALIDATION_TARGET}_redux.png"
         figure_size = (20, 10)
         self.visualize_report_fn(
             self.predict_score,
@@ -1225,7 +1248,7 @@ class Experiment(SpiceEyes):
             figsize=figure_size,
         )
         metrics_to_check = None
-        figure_name = "experiment_results_case.png"
+        figure_name = f"experiment_results_{VALIDATION_TARGET}_case.png"
         if "case" in self.predict_score:
             self.visualize_report_fn(
                 self.predict_score,
