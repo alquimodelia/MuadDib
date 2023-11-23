@@ -63,6 +63,9 @@ def startup(env_file=".env"):
     )
     os.environ["PROCESSED_FILE_PATH"] = PROCESSED_FILE_PATH
 
+    VALIDATION_TARGET = os.getenv("VALIDATION_TARGET", "bscore")
+    os.environ["VALIDATION_TARGET"] = VALIDATION_TARGET
+
     # One target var - Upward
     # List of target variables, multiples variable - Upward;Downward
     # List of experiment with diferent targest - Upward|Downward
