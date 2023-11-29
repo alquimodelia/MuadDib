@@ -35,6 +35,7 @@ class DatasetManager:
         process_fn=None,
         read_fn=None,
         validation_fn=None,
+        process_benchmark_fn=None,
         keras_sequence_cls=None,
         sequence_args=None,
     ):
@@ -56,6 +57,7 @@ class DatasetManager:
         self.process_fn = process_fn
         self.read_fn = read_fn
         self.validation_fn = validation_fn
+        self.process_benchmark_fn = process_benchmark_fn
 
         self.keras_sequence_cls = keras_sequence_cls
         self.sequence_args = sequence_args or {}
@@ -92,6 +94,13 @@ class DatasetManager:
         self.process_fn(y_columns=self.columns_Y, **kwargs)
         self.process_complete = True
 
+    def process_benchmark(self):
+        self.process_benchmark_fn(
+            self.benchmark_data(),
+            self.benchmark_data(return_validation_dataset_Y=True),
+            self.name,
+        )
+
     def read_data(self, **kwargs) -> pd.DataFrame:
         return self.read_fn(self.processed_data_path, **kwargs)
 
@@ -100,7 +109,7 @@ class DatasetManager:
             copy.deepcopy(self.validation_dataframe), frac=1, **kwargs
         )
 
-    def benchmark_data(self, **kwargs):
+    def benchmark_data(self, return_validation_dataset_Y=False, **kwargs):
         # TODO: wtf, too specific for this case....
         (
             validation_dataset_X,
@@ -108,6 +117,8 @@ class DatasetManager:
             _,
             _,
         ) = self.validation_data(skiping_step=24, train_features_folga=24)
+        if return_validation_dataset_Y:
+            return validation_dataset_Y
 
         alloc_dict = {
             "UpwardUsedSecondaryReserveEnergy": "SecondaryReserveAllocationAUpward",

@@ -135,6 +135,16 @@ class SpiceEyes:
             if os.path.exists(self.conf_file):
                 self.__dict__ = self.load(self.conf_file)
 
+    def set_benchmark_path(self):
+        if self.benchmark_score_file is None:
+            DATA_FOLDER = os.getenv("DATA_FOLDER", "data")
+            benchmark_data_folder = os.path.join(
+                DATA_FOLDER, "benchmark", self.DataManager.name
+            )
+            self.benchmark_score_file = os.path.join(
+                benchmark_data_folder, "benchmark.json"
+            )
+
     def set_predict_score(self, new_predict_score):
         for key in new_predict_score.keys():
             value = new_predict_score[key]
@@ -391,6 +401,7 @@ class Case(SpiceEyes):
         self.conf_file = self.conf_file or os.path.join(
             self.case_work_path, "case_conf.json"
         )
+        self.set_benchmark_path()
         if os.path.exists(self.conf_file):
             self.__dict__.update(self.load(self.conf_file))
         else:
@@ -540,7 +551,12 @@ class Case(SpiceEyes):
             self.setup()
 
         # TODO: Get it also some env to do this if necessary
-        if not self.predict_score:  # or if that env var
+        REDO_VALIDATION = os.getenv("REDO_VALIDATION", False)
+        do_validation = REDO_VALIDATION
+        if not self.predict_score:
+            do_validation = True
+
+        if True:
             for freq_save in self.list_freq_saves:
                 epoch = int(
                     os.path.basename(freq_save).replace(self.model_types, "")
@@ -562,7 +578,7 @@ class Case(SpiceEyes):
                 # if true does the score agina  if false just does the fihures
                 predict_score = None
                 # TODO: set env varibale for this with command input
-                if not validation_done:
+                if True:
                     predict_score = self.validation_fn(
                         datamanager=self.DataManager,
                         model_path=freq_save,
@@ -646,6 +662,7 @@ class Experiment(SpiceEyes):
         get_models_on_experiment_fn=None,
         get_models_args=None,
         conf_file=None,
+        forward_epochs=None,
         **kwargs,
     ):
         self.models_dict = models_dict
@@ -654,6 +671,7 @@ class Experiment(SpiceEyes):
         self.best_result = None
         self.get_models_on_experiment_fn = get_models_on_experiment_fn
         self.get_models_args = get_models_args or {}
+        self.forward_epochs = forward_epochs
         super().__init__(name=name, work_folder=work_folder, **kwargs)
         self.description = description
         self.set_tags(experiment_tags)
@@ -705,6 +723,7 @@ class Experiment(SpiceEyes):
 
         self.set_mlflow_experiment()
         self.conf_file = os.path.join(self.case_work_path, "exp_conf.json")
+        self.set_benchmark_path()
         # TODO: dont even know, but the loading needs to change
         if os.path.exists(self.conf_file):
             self.__dict__.update(self.load(self.conf_file))
@@ -979,6 +998,97 @@ class Experiment(SpiceEyes):
 
         COLUMN_TO_SORT_BY = VALIDATION_TARGET
         ascending_to_sort = False
+
+        #  Best result
+        self.best_result = max(case_results[VALIDATION_TARGET])
+
+        # Best from previous
+        if self.previous_experiment:
+            better_scores = case_results[
+                case_results[VALIDATION_TARGET]
+                >= self.previous_experiment.best_result
+            ]
+        else:
+            if os.path.exists(self.benchmark_score_file):
+                benchmark_score = load_json_dict(self.benchmark_score_file)
+            # if bscore then better than abs benchmark
+            if VALIDATION_TARGET in ["bscore", "bscoreB"]:
+                better_scores = case_results[
+                    case_results["abs error"] <= benchmark_score["abs error"]
+                ]
+                better_scores = better_scores[
+                    better_scores[VALIDATION_TARGET] > 0
+                ]
+
+            # if bscore_norm then higher bscore_norm>0 when missing and surpulr better than benchmark
+            elif VALIDATION_TARGET in ["bscore_norm", "bscore_normB"]:
+                better_scores = case_results[
+                    case_results["alloc missing"]
+                    <= benchmark_score["alloc missing"]
+                ]
+                better_scores = better_scores[
+                    better_scores["alloc surplus"]
+                    <= benchmark_score["alloc surplus"]
+                ]
+        unique_values_list = better_scores["name"].unique().tolist()
+        # just the best
+        max_target = better_scores[VALIDATION_TARGET].max()
+        rows_with_best = better_scores[
+            better_scores[VALIDATION_TARGET] == max_target
+        ]
+        unique_values_list = rows_with_best["name"].unique().tolist()
+
+        better_scores.reset_index(inplace=True, drop=True)
+        if self.forward_epochs:
+            forward_cases = case_results[
+                case_results["name"].isin(unique_values_list)
+            ]
+            forward_cases = forward_cases[
+                forward_cases["epoch"] <= self.forward_epochs
+            ]
+            self.best_result = max(forward_cases[VALIDATION_TARGET])
+
+        print("----------------------------------------------------")
+        print("Worthy models are: ", unique_values_list)
+        self.worthy_models = unique_values_list
+        self.worthy_cases = [
+            self.study_cases[f]
+            for f in unique_values_list
+            # if self.study_cases[f].worthy
+        ]
+        if len(better_scores) > 0:
+            unique_values_list = better_scores["name"].unique().tolist()
+            path_schema_tex = os.path.join(
+                case_report_path,
+                f"experiment_results_{VALIDATION_TARGET}_better_than_previous_10.tex",
+            )
+
+            better_scores.head(10).to_latex(
+                path_schema_tex, escape=False, index=False, float_format="%.2f"
+            )
+
+            path_schema_tex = os.path.join(
+                case_report_path,
+                f"experiment_results_{VALIDATION_TARGET}_better_than_previous.tex",
+            )
+
+            better_scores.to_latex(
+                path_schema_tex, escape=False, index=False, float_format="%.2f"
+            )
+            # Get the best score for each unique value in the "name" column
+            best_scores = better_scores.loc[
+                better_scores.groupby("name").idxmax()[COLUMN_TO_SORT_BY]
+            ].sort_values(by=COLUMN_TO_SORT_BY, ascending=ascending_to_sort)
+
+            path_schema_tex = os.path.join(
+                case_report_path,
+                f"experiment_results_{VALIDATION_TARGET}_better_than_previous_best_of_each.tex",
+            )
+
+            best_scores.to_latex(
+                path_schema_tex, escape=False, index=False, float_format="%.2f"
+            )
+
         # All results, ordered by epoch
         path_schema_csv = os.path.join(
             case_report_path, f"experiment_results_{VALIDATION_TARGET}.csv"
@@ -1009,11 +1119,6 @@ class Experiment(SpiceEyes):
         case_results.to_csv(path_schema_csv, index=False)
         case_results.to_latex(
             path_schema_tex, escape=False, index=False, float_format="%.2f"
-        )
-
-        # Sort the DataFrame by "optimal percentage" column in descending order
-        case_results.sort_values(
-            by=COLUMN_TO_SORT_BY, ascending=False, inplace=True
         )
 
         # Get the best score for each unique value in the "name" column
@@ -1057,8 +1162,8 @@ class Experiment(SpiceEyes):
         no_missin_scores = no_missin_scores.dropna().sort_values(
             by=VALIDATION_TARGET, ascending=False
         )
-        if len(no_missin_scores[VALIDATION_TARGET]) > 0:
-            self.best_result = max(no_missin_scores[VALIDATION_TARGET])
+        # if len(no_missin_scores[VALIDATION_TARGET]) > 0:
+        #     self.best_result = max(no_missin_scores[VALIDATION_TARGET])
 
         path_schema_tex = os.path.join(
             case_report_path,
@@ -1089,8 +1194,8 @@ class Experiment(SpiceEyes):
             no_missin_scores2 = no_missin_scores2.dropna().sort_values(
                 by=VALIDATION_TARGET, ascending=False
             )
-            if len(no_missin_scores2[VALIDATION_TARGET]) > 0:
-                self.best_result = max(no_missin_scores2[VALIDATION_TARGET])
+            # if len(no_missin_scores2[VALIDATION_TARGET]) > 0:
+            #     self.best_result = max(no_missin_scores2[VALIDATION_TARGET])
 
             path_schema_tex = os.path.join(
                 case_report_path,
@@ -1135,18 +1240,18 @@ class Experiment(SpiceEyes):
             better_scores.to_latex(
                 path_schema_tex, escape=False, index=False, float_format="%.2f"
             )
-            self.best_result = max(better_scores[VALIDATION_TARGET])
+            # self.best_result = max(better_scores[VALIDATION_TARGET])
 
         else:
             unique_values_list = no_missin_scores["name"].unique().tolist()
-        print("----------------------------------------------------")
-        print("Worthy models are: ", unique_values_list)
-        self.worthy_models = unique_values_list
-        self.worthy_cases = [
-            self.study_cases[f]
-            for f in unique_values_list
-            # if self.study_cases[f].worthy
-        ]
+        # print("----------------------------------------------------")
+        # print("Worthy models are: ", unique_values_list)
+        # self.worthy_models = unique_values_list
+        # self.worthy_cases = [
+        #     self.study_cases[f]
+        #     for f in unique_values_list
+        #     # if self.study_cases[f].worthy
+        # ]
 
         if ascending_to_sort is False:
             no_missin_scores = no_missin_scores.groupby("name").apply(
@@ -1189,7 +1294,7 @@ class Experiment(SpiceEyes):
         benchmark_score = {}
 
         if os.path.exists(self.benchmark_score_file):
-            load_json_dict(self.benchmark_score_file)
+            benchmark_score = load_json_dict(self.benchmark_score_file)
 
         figure_name = f"experiment_results_{VALIDATION_TARGET}.png"
         self.visualize_report_fn(
@@ -1301,8 +1406,6 @@ def ExperimentFactory(
     for tag_name, targets in final_targets.items():
         previous_experiment = None
         exp_name = f"{tag_name}:{name}"
-        print("CALING yhe focjer rksljfdkjdsklfmlk")
-        print(exp_name)
         if previous_experiment_dict is not None:
             # TODO: change this getting of the previous name
             last_arch_name = list(previous_experiment_dict.keys())[0].split(

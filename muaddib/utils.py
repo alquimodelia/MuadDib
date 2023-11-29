@@ -66,6 +66,9 @@ def startup(env_file=".env"):
     VALIDATION_TARGET = os.getenv("VALIDATION_TARGET", "bscore")
     os.environ["VALIDATION_TARGET"] = VALIDATION_TARGET
 
+    REDO_VALIDATION = os.getenv("REDO_VALIDATION", False)
+    os.environ["REDO_VALIDATION"] = REDO_VALIDATION
+
     # One target var - Upward
     # List of target variables, multiples variable - Upward;Downward
     # List of experiment with diferent targest - Upward|Downward

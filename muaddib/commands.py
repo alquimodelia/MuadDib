@@ -92,6 +92,15 @@ def process_data(args):
         dataman.process_data()
 
 
+def process_benchmark(args):
+    startup()
+    global ALL_DATA_MANAGERS
+    from data.definitions import ALL_DATA_MANAGERS
+
+    for dataman in ALL_DATA_MANAGERS.values():
+        dataman.process_benchmark()
+
+
 def process_models(args):
     pass
 
@@ -157,8 +166,12 @@ def train_on_call(args):
 def train_on_experiment_loop(args):
     start(args)
     experiment_name_train = args.experiment
+    target_on_exp_to_train = experiment_name_train.split(":")[0]
     case_name_train = args.case
     for experiment_name, exp in experiments_dict.items():
+        target_on_exp = experiment_name.split(":")[0]
+        if target_on_exp_to_train != target_on_exp:
+            continue
         print("Train on experiment loop, in the fokccer")
         print(experiment_name)
         exp.setup()
@@ -170,8 +183,8 @@ def train_on_experiment_loop(args):
                 #     continue
                 if "252" in case_obj.name:
                     continue
-                if case_obj.name.endswith("_adam"):
-                    continue
+                # if case_obj.name.endswith("_adam"):
+                #     continue
 
                 if case_name == case_name_train:
                     if not case_obj.complete:
