@@ -151,15 +151,22 @@ def train_model_process(case_obj):
 
 
 def train_on_call(args):
+    print("-------------------")
+    print("Runnig train on call")
     start(args)
     experiment_name_train = args.experiment
     case_name_train = args.case
+    print(experiment_name_train)
+    print(case_name_train)
+
     exp_obj = experiments_dict[experiment_name_train]
-    exp_obj.setup()
+    # exp_obj.setup()
     case_obj = exp_obj.study_cases[case_name_train]
     if not case_obj.complete:
         case_obj.train_model()
     case_obj.validate_model()
+    # exp_obj.validate_experiment()
+    # exp_obj.visualize_report()
 
 
 # TODO: chane this, this is garbage
@@ -174,15 +181,15 @@ def train_on_experiment_loop(args):
             continue
         print("Train on experiment loop, in the fokccer")
         print(experiment_name)
-        exp.setup()
+        # exp.setup()
         print("-------------------------------------------------------------")
         for case_obj in exp.conf:
             if experiment_name == experiment_name_train:
                 case_name = str(case_obj.name)
                 # if len(case_name.split("_")) > 4:
                 #     continue
-                if "252" in case_obj.name:
-                    continue
+                # if "252" in case_obj.name:
+                #     continue
                 # if case_obj.name.endswith("_adam"):
                 #     continue
 
@@ -208,28 +215,37 @@ def experiment(args):
     for experiment_name, exp in experiments_dict.items():
         # exp.setup()
         print("-------------------------------------------------------------")
+        print(exp.name)
+        print("Is complete?", exp.complete)
         # if exp.complete:
         # continue
         if name is not None:
             if name != experiment_name:
                 continue
-        print(exp.name)
-        if not getattr(exp, "conf", None):
-            exp.setup()
+
+        print(exp.previous_experiment)
+        # if exp.previous_experiment:
+        #     exp.setup()
+        print("Is complete?", exp.complete)
+
+        if exp.complete:
+            continue
+        # if not getattr(exp, "conf", None):
+        #     exp.setup()
         for case_obj in exp.conf:
             case_name = str(case_obj.name)
-
+            # case_obj.train_model()
             # case_obj.validate_model()
 
             if not case_obj.complete:
+                #     command = (
+                #         f"KERAS_BACKEND={case_obj.keras_backend}"
+                #         f" muaddib train_on_experiment_loop --experiment={experiment_name} --case={case_name}"
+                #     )
                 command = (
                     f"KERAS_BACKEND={case_obj.keras_backend}"
-                    f" muaddib train_on_experiment_loop --experiment={experiment_name} --case={case_name}"
+                    f" muaddib train_on_call --experiment={experiment_name} --case={case_name}"
                 )
-                # command = (
-                #     f"KERAS_BACKEND={case_obj.keras_backend}"
-                #     f" muaddib train_on_call --experiment={experiment_name} --case={case_name}"
-                # )
                 open_new_console(command)
             case_obj.validate_model()
         exp.validate_experiment()
