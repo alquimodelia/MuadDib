@@ -1,3 +1,4 @@
+import glob
 import os
 import subprocess
 import sys
@@ -28,10 +29,6 @@ def open_new_console(command):
                 print("Unsupported platform")
                 sys.exit(1)
     process.wait()  # Wait for the process to finish
-
-
-def reset_configurations(args):
-    pass
 
 
 def new(args):
@@ -85,6 +82,16 @@ def start(args):
 def init(args):
     startup()
     subprocess.run(["pip", "install", "-e", "."])
+
+
+def reset_configurations(args):
+    startup()
+
+    EXPERIMENT_FOLDER = os.getenv("EXPERIMENT_FOLDER", None)
+    qry = f"{EXPERIMENT_FOLDER}/**/**_conf.json"
+    list_of_all_conf_file = glob.glob(qry, recursive=True)
+    for cf in list_of_all_conf_file:
+        os.remove(cf)
 
 
 def process_data(args):
@@ -158,6 +165,10 @@ def train_on_call(args):
     print("-------------------")
     print("Runnig train on call")
     start(args)
+    validation_target = getattr(args, "validation_target", None)
+    if validation_target is not None:
+        os.environ["VALIDATION_TARGET"] = validation_target
+
     experiment_name_train = args.experiment
     case_name_train = args.case
     print(experiment_name_train)
@@ -215,6 +226,10 @@ def train_on_experiment_loop(args):
 
 def experiment(args):
     start(args)
+    validation_target = getattr(args, "validation_target", None)
+    if validation_target is not None:
+        os.environ["VALIDATION_TARGET"] = validation_target
+
     name = getattr(args, "name", None)
     for experiment_name, exp in experiments_dict.items():
         # exp.setup()
@@ -251,10 +266,14 @@ def experiment(args):
                     f"KERAS_BACKEND={case_obj.keras_backend}"
                     f" muaddib train_on_call --experiment={experiment_name} --case={case_name}"
                 )
+                if validation_target is not None:
+                    command += f" --validation_target={validation_target}"
+
                 open_new_console(command)
             case_obj.validate_model()
         exp.validate_experiment()
         exp.visualize_report()
         print("exp.worthy_cases in commandsssssssssssssssss")
+        print([f.name for f in exp.worthy_cases])
 
         print(exp.worthy_cases)

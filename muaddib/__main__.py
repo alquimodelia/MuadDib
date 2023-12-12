@@ -9,6 +9,7 @@ from muaddib.commands import (
     new,
     process_benchmark,
     process_data,
+    reset_configurations,
     start,
     train,
     train_case,
@@ -80,12 +81,21 @@ def get_arg_parser():
     )
     parser_train_on_call.add_argument("--case", help="Model to train")
     parser_train_on_call.add_argument("--experiment", help="Model to train")
+    parser_train_on_call.add_argument(
+        "--validation_target", help="Model to train"
+    )
+
     subparsers.add_parser("init", help="start help")
-    subparsers.add_parser("experiment", help="start help")
+    parser_experiment = subparsers.add_parser("experiment", help="start help")
+    parser_experiment.add_argument(
+        "--validation_target", help="Model to train"
+    )
 
     subparsers.add_parser("start", help="start help")
     subparsers.add_parser("plots", help="plots help")
     subparsers.add_parser("run", help="run help")
+
+    subparsers.add_parser("reset", help="start help")
 
     return parser
 
@@ -131,6 +141,7 @@ COMMANDS = {
     "train_on_experiment_loop": train_on_experiment_loop,
     "train_on_call": train_on_call,
     "process_benchmark": process_benchmark,
+    "reset": reset_configurations,
 }
 
 

@@ -405,6 +405,11 @@ class Case(SpiceEyes):
 
     def validate_model(self):
         REDO_VALIDATION = os.getenv("REDO_VALIDATION", False)
+        if isinstance(REDO_VALIDATION, str):
+            if REDO_VALIDATION.lower() == "false":
+                REDO_VALIDATION = False
+            else:
+                REDO_VALIDATION = True
         prediction_score_exists = os.path.exists(self.predict_score_path)
         validation_complete = (
             self.validation_complete or prediction_score_exists
@@ -445,6 +450,8 @@ class Case(SpiceEyes):
                 self.set_predict_score(predict_score)
             # TODO: perfect example to just change to tinyDB
             write_dict_to_file(self.predict_score, self.predict_score_path)
+        else:
+            self.predict_score = load_json_dict(self.predict_score_path)
         self.validation_complete = True
         self.save(self.conf_file)
 
@@ -463,6 +470,104 @@ class Experiment(SpiceEyes):
         self.previous_experiment = previous_experiment
         self.forward_epochs = forward_epochs
         super().__init__(obj_type="experiment", **kwargs)
+
+    @staticmethod
+    def add(ExperimentA, ExperimentB):
+        dict_to_loadA = ExperimentA.__dict__.copy()
+        dict_to_loadB = ExperimentB.__dict__.copy()
+
+        all_keys = list(
+            set(list(dict_to_loadA.keys()) + list(dict_to_loadB.keys()))
+        )
+
+        new_dict_Halleck = {}
+
+        for key in all_keys:
+            if key == "name":
+                tag, nameA = dict_to_loadA[key].split(":")
+                tag, nameB = dict_to_loadB[key].split(":")
+
+                value_to_use = f"{tag}:{nameA}+{nameB}"
+                new_dict_Halleck[key] = value_to_use
+            elif key in ["previous_halleck", "halleck_obj"]:
+                from muaddib.models import ModelHalleck
+
+                value_to_use = ModelHalleck.add(
+                    dict_to_loadB[key], dict_to_loadB[key]
+                )
+            elif key == "DataManager":
+                # Assuming the sum is always with the same dataset
+                value = dict_to_loadA[key]
+                new_dict_Halleck[key] = value
+
+            else:
+                value_to_use = None
+                A = None
+                B = None
+                if key in dict_to_loadA:
+                    A = dict_to_loadA[key]
+                if key in dict_to_loadB:
+                    B = dict_to_loadB[key]
+                if A == B:
+                    value_to_use = A
+                elif not isinstance(A, dict):
+                    if A is None:
+                        value_to_use = B
+                    elif B is None:
+                        value_to_use = A
+                    else:
+                        if not isinstance(A, list):
+                            A = [A]
+                        A = list(set(A))
+                        if not isinstance(B, list):
+                            B = [B]
+                        B = list(set(B))
+                        if A == B:
+                            value_to_use = A
+                        else:
+                            value_to_use = A + B
+                        if len(value_to_use) == 0:
+                            value_to_use = value_to_use[0]
+                else:
+                    models_to_experiment = {}
+                    models_to_experiment.update(dict_to_loadA[key])
+                    models_to_experiment.update(dict_to_loadB[key])
+                    value_to_use = models_to_experiment
+
+                new_dict_Halleck[key] = value_to_use
+
+        list_pop = [
+            "conf_file",
+            "predict_score",
+            "obj_work_folder",
+            "obj_type",
+            "predict_score_path",
+        ]
+        for t in list_pop:
+            if t in new_dict_Halleck:
+                new_dict_Halleck.pop(t)
+
+        new_dict_Halleck_initilize = new_dict_Halleck.copy()
+
+        list_pop = [
+            "study_cases",
+            "conf",
+            "worthy_models",
+            "worthy_cases",
+            "validation_complete",
+            "complete",
+            "best_result",
+        ]
+
+        for t in list_pop:
+            if t in new_dict_Halleck_initilize:
+                new_dict_Halleck_initilize.pop(t)
+
+        new_Halleck = Experiment(**new_dict_Halleck_initilize)
+        new_Halleck.__dict__.update(new_dict_Halleck)
+        new_Halleck.setup()
+
+        return new_Halleck
 
     def obj_setup(self, **kwargs):
         if self.previous_experiment:
@@ -521,6 +626,8 @@ class Experiment(SpiceEyes):
                 what_is_on_study.add(var)
             else:
                 var_to_use = None
+                # TODO: we should get this attributes from the best case and not the experiment itself. if is a list were fucked.
+                # how do  we do for worthy worthy_cases? or for one best case scenrio?
                 if self.previous_experiment:
                     var_to_use = getattr(self.previous_experiment, var)
                 var_to_use = var_to_use or self_var
@@ -577,13 +684,20 @@ class Experiment(SpiceEyes):
                     case_name = case_name[:-1]
 
                 casemodelobj_to_use = copy.deepcopy(casemodelobj)
-                case_obj = Case(
-                    model_case_obj=casemodelobj_to_use,
-                    name=case_name,
-                    on_study_name=on_study_name_to_use,
-                    **case_args,
-                    **commun_case_args,
-                )
+                case_obj = None
+                if self.previous_experiment:
+                    if case_name in self.previous_experiment.study_cases:
+                        case_obj = self.previous_experiment.study_cases[
+                            case_name
+                        ]
+                if case_obj is None:
+                    case_obj = Case(
+                        model_case_obj=casemodelobj_to_use,
+                        name=case_name,
+                        on_study_name=on_study_name_to_use,
+                        **case_args,
+                        **commun_case_args,
+                    )
                 self.conf.append(case_obj)
                 self.study_cases[case_obj.name] = case_obj
 
@@ -594,11 +708,15 @@ class Experiment(SpiceEyes):
         print(f"Validating {self.name}")
         prediction_score_exists = os.path.exists(self.predict_score_path)
         REDO_VALIDATION = os.getenv("REDO_VALIDATION", False)
+        if isinstance(REDO_VALIDATION, str):
+            if REDO_VALIDATION.lower() == "false":
+                REDO_VALIDATION = False
+            else:
+                REDO_VALIDATION = True
         validation_complete = (
             self.validation_complete or prediction_score_exists
         )
         do_validation = not validation_complete or REDO_VALIDATION
-
         if do_validation:
             for case_obj in self.conf:
                 self.set_predict_score(case_obj.predict_score)
@@ -610,21 +728,22 @@ class Experiment(SpiceEyes):
                             [case_obj.best_result, self.best_result]
                         )
 
-            self.write_report()
-            self.halleck_obj.set_best_case_model(
-                [f.model_case_obj.arquitecture for f in self.worthy_cases]
-            )
             self.validation_complete = True
-            # TODO: tinyDBBBB
-            self.halleck_obj.save(self.halleck_obj.conf_file)
             self.save(self.conf_file)
             write_dict_to_file(self.predict_score, self.predict_score_path)
 
         elif prediction_score_exists:
             self.predict_score = load_json_dict(self.predict_score_path)
+        self.write_report()
+        # TODO: tinyDBBBB
+        self.halleck_obj.set_best_case_model(
+            [f.model_case_obj.arquitecture for f in self.worthy_cases]
+        )
+        self.halleck_obj.save(self.halleck_obj.conf_file)
 
     # TODO: change all this mess of report writing
     # TODO: outsource this somewhere else, its too specific for my thesis case.
+    # TODO: modulate this between what defnies new stuf and what saves figs and stuf
     def write_report(self):
         print(f"writin report for {self.name}")
         import pandas as pd
@@ -671,9 +790,28 @@ class Experiment(SpiceEyes):
                     better_scores["alloc surplus"]
                     <= benchmark_score["alloc surplus"]
                 ]
+            if len(better_scores) == 0:
+                # get the best 5%
+                top_values = case_results[VALIDATION_TARGET].quantile(0.94)
+                better_scores = case_results[
+                    case_results[VALIDATION_TARGET] > top_values
+                ]
+            if len(better_scores) == 0:
+                top_values_m = case_results["alloc missing"].quantile(0.60)
+                top_values_s = case_results["alloc surplus"].quantile(0.60)
+
+                better_scores = case_results[
+                    case_results["alloc missing"] > top_values_m
+                ]
+
+                better_scores = better_scores[
+                    better_scores["alloc surplus"] > top_values_s
+                ]
+
         unique_values_list = better_scores["name"].unique().tolist()
         # just the best
         max_target = better_scores[VALIDATION_TARGET].max()
+
         rows_with_best = better_scores[
             better_scores[VALIDATION_TARGET] == max_target
         ]
@@ -684,6 +822,7 @@ class Experiment(SpiceEyes):
             forward_cases = case_results[
                 case_results["name"].isin(unique_values_list)
             ]
+
             forward_cases = forward_cases[
                 forward_cases["epoch"] <= self.forward_epochs
             ]
@@ -1060,4 +1199,37 @@ def ExperimentFactory(
         )
         experiment_dict[exp_name] = exp
 
+    return experiment_dict
+
+
+def SumExperiments(experiment_dictA, experiment_dictB):
+    tagsA = [f.split(":")[0] for f in experiment_dictA.keys()]
+    tagsB = [f.split(":")[0] for f in experiment_dictB.keys()]
+    unique_tags = list(set(tagsA + tagsB))
+
+    experiment_dict = {}
+
+    for tag in unique_tags:
+        A = None
+        B = None
+        if tag in tagsA:
+            A = [f for k, f in experiment_dictA.items() if k.startswith(tag)][
+                0
+            ]
+        if tag in tagsB:
+            B = [f for k, f in experiment_dictB.items() if k.startswith(tag)][
+                0
+            ]
+        value_to_use = None
+        if B is not None:
+            if A is not None:
+                value_to_use = Experiment.add(A, B)
+            else:
+                value_to_use = B
+        if value_to_use is None:
+            if A is not None:
+                value_to_use = A
+        if value_to_use is not None:
+            exp_name = value_to_use.name
+            experiment_dict[exp_name] = value_to_use
     return experiment_dict
