@@ -255,6 +255,57 @@ class ModelHalleck:
         # self.models_dict=models_dict
         # self.setup()
 
+    @staticmethod
+    def add(halleckA, halleckB):
+        dict_to_loadA = halleckA.__dict__.copy()
+        dict_to_loadB = halleckB.__dict__.copy()
+
+        all_keys = list(
+            set(list(dict_to_loadA.keys()) + list(dict_to_loadB.keys()))
+        )
+
+        new_Halleck = ModelHalleck()
+        new_dict_Halleck = {}
+
+        for key in all_keys:
+            if key == "name":
+                value_to_use = f"{dict_to_loadA[key]}+{dict_to_loadB[key]}"
+                new_dict_Halleck[key] = value_to_use
+            elif key == "models_to_experiment":
+                models_to_experiment = {}
+                models_to_experiment.update(dict_to_loadA[key])
+                models_to_experiment.update(dict_to_loadB[key])
+                value_to_use = models_to_experiment
+
+            else:
+                value_to_use = None
+                A = None
+                B = None
+                if key in dict_to_loadA:
+                    A = dict_to_loadA[key]
+                if key in dict_to_loadB:
+                    B = dict_to_loadB[key]
+                if A == B:
+                    value_to_use = A
+                else:
+                    if not isinstance(A, list):
+                        A = [A]
+                    A = list(set(A))
+                    if not isinstance(B, list):
+                        B = [B]
+                    B = list(set(B))
+                    if A == B:
+                        value_to_use = A
+                    else:
+                        value_to_use = A + B
+                    if len(value_to_use) == 0:
+                        value_to_use = value_to_use[0]
+                new_dict_Halleck[key] = value_to_use
+
+        new_Halleck.__dict__.update(new_dict_Halleck)
+
+        return new_Halleck
+
     def save(self, path=None):
         dict_to_load = self.__dict__.copy()
         dict_to_save = {}
