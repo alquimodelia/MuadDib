@@ -551,8 +551,8 @@ class Experiment(SpiceEyes):
             casemodelobj,
         ) in self.halleck_obj.models_to_experiment.items():
             on_study_name = casemodelobj.case_to_study_name or ""
-
             for case_args in result_combinations:
+                on_study_name_to_use = on_study_name
                 case_name = model_name
                 for k, n in case_args.items():
                     if isinstance(n, int):
@@ -567,9 +567,11 @@ class Experiment(SpiceEyes):
                             )
                     if k in what_is_on_study:
                         if len(on_study_name) == 0:
-                            on_study_name = name_to_add
+                            on_study_name_to_use = name_to_add
                         else:
-                            on_study_name += f"_{name_to_add}"
+                            on_study_name_to_use = (
+                                on_study_name + f"_{name_to_add}"
+                            )
                     case_name += f"_{name_to_add}"
                 if case_name.endswith("_"):
                     case_name = case_name[:-1]
@@ -578,7 +580,7 @@ class Experiment(SpiceEyes):
                 case_obj = Case(
                     model_case_obj=casemodelobj_to_use,
                     name=case_name,
-                    on_study_name=on_study_name,
+                    on_study_name=on_study_name_to_use,
                     **case_args,
                     **commun_case_args,
                 )
