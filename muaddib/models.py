@@ -266,6 +266,9 @@ class ModelHalleck:
             if key == "models_to_experiment":
                 dict_to_save[key] = [v.name for k, v in value.items()]
 
+            if key in ["previous_halleck"]:
+                dict_to_save[key] = value.conf_file
+
             if not is_jsonable(dict_to_save[key]):
                 dict_to_save[key] = (
                     dict_to_save[key].name
@@ -290,6 +293,9 @@ class ModelHalleck:
             elif key == "models_to_experiment":
                 # Load a Case
                 dict_to_restore[key] = {k: CaseModel(name=k) for k in value}
+            elif key in ["previous_halleck"]:
+                dict_to_restore[key] = ModelHalleck(conf_file=value)
+
         # if "previous_cases" in dict_to_restore:
         #     if dict_to_restore["previous_cases"]:
         #         previous_cases = []
@@ -341,6 +347,8 @@ class ModelHalleck:
         }
         previous_archs = None
         if self.previous_halleck:
+            if not getattr(self.previous_halleck, "best_archs", None):
+                self.previous_halleck.setup()
             previous_archs = self.previous_halleck.best_archs
         archs_to_use = self.archs_to_use or previous_archs
         if not isinstance(archs_to_use, list):

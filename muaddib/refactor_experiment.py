@@ -151,7 +151,7 @@ class SpiceEyes:
                     dict_to_save[key] = list(range(len(value_str)))
                     for i, k in enumerate(value_str):
                         dict_to_save[key][i] = getattr(k, "name", k)
-            if key == "previous_halleck":
+            if key in ["previous_halleck", "halleck_obj"]:
                 dict_to_save[key] = value.conf_file
             if not is_jsonable(dict_to_save[key]):
                 dict_to_save[key] = (
@@ -252,7 +252,7 @@ class SpiceEyes:
                 from data.definitions import ALL_DATA_MANAGERS
 
                 dict_to_restore[key] = ALL_DATA_MANAGERS[value]
-            elif key == "previous_halleck":
+            elif key in ["previous_halleck", "halleck_obj"]:
                 from muaddib.models import ModelHalleck
 
                 dict_to_restore[key] = ModelHalleck(conf_file=value)
@@ -305,8 +305,6 @@ class SpiceEyes:
         )
 
         setup = self.obj_setup()
-        print(self.name)
-        print(setup)
         if setup:
             self.save(path=self.conf_file)
 
@@ -501,7 +499,6 @@ class Experiment(SpiceEyes):
                 halleck_init_args.update(
                     {"previous_halleck": previous_halleck}
                 )
-
             self.halleck_obj = ModelHalleck(**halleck_init_args)
         self.halleck_obj.setup(conf_file=halleck_conf_file)
 
@@ -1051,7 +1048,6 @@ def ExperimentFactory(
             previous_experiment = previous_experiment_dict[last_tag_name]
 
         dataman = ALL_DATA_MANAGERS[tag_name]
-        print("wwwwwwwwww", tag_name)
         exp = Experiment(
             DataManager=dataman,
             previous_experiment=previous_experiment,

@@ -30,6 +30,10 @@ def open_new_console(command):
     process.wait()  # Wait for the process to finish
 
 
+def reset_configurations(args):
+    pass
+
+
 def new(args):
     TEMPLATE_TO_BUILD = (
         "https://github.com/alquimodelia/arrakis-coockiecutter.git"
