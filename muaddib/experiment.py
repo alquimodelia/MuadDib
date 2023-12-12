@@ -1,4 +1,5 @@
 # ShaiHulud
+import copy
 import glob
 import importlib
 import inspect
@@ -36,7 +37,6 @@ if MLFLOW_STATE == "on":
     client = MlflowClient(tracking_uri=tracking_uri)
 
 
-# TODO: make some lightweight version of the object, like just the case.__dict__ to get str values out of it
 def is_jsonable(x):
     if isinstance(x, list):
         return all(is_jsonable(item) for item in x)
@@ -131,9 +131,14 @@ class SpiceEyes:
         self.worthy_models = None
         self.conf_file = conf_file
         self.predict_score_path = None
-        if self.conf_file:
+        # if self.conf_file:
+        #     if os.path.exists(self.conf_file):
+        #         self.__dict__ = self.load(self.conf_file)
+
+    def load_from_conf(self):
+        if self.conf_file is not None:
             if os.path.exists(self.conf_file):
-                self.__dict__ = self.load(self.conf_file)
+                self.__dict__.update(self.load(self.conf_file))
 
     def set_benchmark_path(self):
         if self.benchmark_score_file is None:
@@ -231,9 +236,13 @@ class SpiceEyes:
                 continue
             if key == "conf":
                 # Load a Case
+                complete_exp = False
                 dict_to_restore[key] = [
                     Case(conf_file=conf_file) for conf_file in value
                 ]
+                complete = [f.complete for f in dict_to_restore[key]]
+                if sum(complete) == len(dict_to_restore[key]):
+                    complete_exp = True
             elif key == "study_cases":
                 # Load a Case
                 # TODO: there are problems when loading a case that was deleted, it does not do it again.
@@ -253,36 +262,36 @@ class SpiceEyes:
                     getattr(alquitable.callbacks, callback_name)
                     for callback_name in value
                 ]
-            elif key == "previous_cases":
-                previous_cases = []
-                experiments_in_list = []
-                for f in value:
-                    target_name, exp_name, case_name = f.split(":")
-                    experiments_in_list.append(f"{target_name}:{exp_name}")
+            # elif key == "previous_cases":
+            #     previous_cases = []
+            #     experiments_in_list = []
+            #     for f in value:
+            #         target_name, exp_name, case_name = f.split(":")
+            #         experiments_in_list.append(f"{target_name}:{exp_name}")
 
-                experiments_in_list = np.unique(experiments_in_list)
-                cases_per_experiment = {}
-                for exp in experiments_in_list:
-                    cases_per_experiment[exp] = []
-                    for f in value:
-                        target_name, exp_name, case_name = f.split(":")
-                        if f"{target_name}:{exp_name}" == exp:
-                            cases_per_experiment[exp].append(case_name)
-                    folder_target, folder_exp = exp.split(":")
+            #     experiments_in_list = np.unique(experiments_in_list)
+            #     cases_per_experiment = {}
+            #     for exp in experiments_in_list:
+            #         cases_per_experiment[exp] = []
+            #         for f in value:
+            #             target_name, exp_name, case_name = f.split(":")
+            #             if f"{target_name}:{exp_name}" == exp:
+            #                 cases_per_experiment[exp].append(case_name)
+            #         folder_target, folder_exp = exp.split(":")
 
-                    path_experiment = os.path.join(
-                        os.getenv("EXPERIMENT_FOLDER"),
-                        folder_target,
-                        folder_exp,
-                        "exp_conf.json",
-                    )
-                    exp_obj = Experiment(conf_file=path_experiment)
-                    previous_cases += [
-                        case_obj
-                        for case_name, case_obj in exp_obj.study_cases.items()
-                        if case_name in cases_per_experiment[exp]
-                    ]
-                dict_to_restore[key] = previous_cases
+            #         path_experiment = os.path.join(
+            #             os.getenv("EXPERIMENT_FOLDER"),
+            #             folder_target,
+            #             folder_exp,
+            #             "exp_conf.json",
+            #         )
+            #         exp_obj = Experiment(conf_file=path_experiment)
+            #         previous_cases += [
+            #             case_obj
+            #             for case_name, case_obj in exp_obj.study_cases.items()
+            #             if case_name in cases_per_experiment[exp]
+            #         ]
+            #     dict_to_restore[key] = previous_cases
             elif key == "loss":
                 dict_to_restore[key] = [
                     get_mirror_weight_loss(loss_name) for loss_name in value
@@ -309,7 +318,30 @@ class SpiceEyes:
 
             # elif key == "model":
             #     pass
+        if "previous_cases" in dict_to_restore:
+            if dict_to_restore["previous_cases"]:
+                previous_cases = []
+                experiments_in_list = []
+                for f in dict_to_restore["previous_cases"]:
+                    target_name, exp_name, case_name = f.split(":")
+                    experiments_in_list.append(f"{target_name}:{exp_name}")
 
+                experiments_in_list = np.unique(experiments_in_list)
+                cases_per_experiment = {}
+                for exp in experiments_in_list:
+                    cases_per_experiment[exp] = []
+                    for f in dict_to_restore["previous_cases"]:
+                        target_name, exp_name, case_name = f.split(":")
+                        if f"{target_name}:{exp_name}" == exp:
+                            cases_per_experiment[exp].append(case_name)
+                previous_cases += [
+                    case_obj
+                    for case_name, case_obj in exp_obj.study_cases.items()
+                    if case_name in cases_per_experiment[exp]
+                ]
+                dict_to_restore["previous_cases"] = previous_cases
+        if "conf" in dict_to_restore:
+            dict_to_restore["complete"] = complete_exp
         if "worthy_cases" in dict_to_restore:
             if len(dict_to_restore["worthy_cases"]) > 0:
                 dict_to_restore["worthy_cases"] = [
@@ -542,6 +574,7 @@ class Case(SpiceEyes):
             compile_args=self.compile_args,
             model_name=self.name,
         )
+        self.complete = True
         if MLFLOW_STATE == "on":
             # End the MLflow run
             mlflow.end_run()
@@ -675,12 +708,17 @@ class Experiment(SpiceEyes):
         super().__init__(name=name, work_folder=work_folder, **kwargs)
         self.description = description
         self.set_tags(experiment_tags)
+        already_read = False
+
         if conf_file is not None:
             if os.path.exists(conf_file):
                 self.__dict__.update(self.load(conf_file))
+                already_read = True
+        self.already_read = already_read
         # self.set_mlflow_experiment()
         if not self.previous_experiment:
-            self.setup()
+            if not self.already_read:
+                self.setup()
         # self.experiment_configuration(models_dict)
 
     def set_tags(self, experiment_tags=None):
@@ -718,8 +756,6 @@ class Experiment(SpiceEyes):
             self.case_work_path, "predict_score.json"
         )
         os.makedirs(self.case_work_path, exist_ok=True)
-        if self.previous_experiment:
-            self.previous_cases = self.previous_experiment.worthy_cases
 
         self.set_mlflow_experiment()
         self.conf_file = os.path.join(self.case_work_path, "exp_conf.json")
@@ -728,7 +764,13 @@ class Experiment(SpiceEyes):
         if os.path.exists(self.conf_file):
             self.__dict__.update(self.load(self.conf_file))
         else:
+            if self.previous_experiment:
+                self.previous_cases = self.previous_experiment.worthy_cases
+
             if self.get_models_on_experiment_fn is not None:
+                # for key, value in self.get_models_args:
+                #     if value is None:
+                #         self.get_models_args[key] =
                 self.models_dict = self.get_models_on_experiment_fn(
                     self.previous_experiment.worthy_models,
                     input_args=self.get_models_args,
@@ -911,8 +953,9 @@ class Experiment(SpiceEyes):
         models_dict = models_dict or self.models_dict
         self.conf = []
         self.study_cases = {}
-        if self.previous_cases:
-            for previous_case_obj in self.previous_cases:
+        cases_to_loop = self.previous_cases
+        if not models_dict:
+            for previous_case_obj in cases_to_loop:
                 # if "UNET" in previous_case_obj.name:
                 #     continue
                 variables = {
@@ -958,8 +1001,40 @@ class Experiment(SpiceEyes):
                     self.study_cases[case_obj.name] = case_obj
         else:
             for model_name, model in models_dict.items():
+                new_args = {}
+                # TODO: assuming its just one case... what a shitcase this is getting
+                if self.previous_cases:
+                    previous_case_obj = self.previous_cases[0]
+                    variables = {
+                        "optimizer": isinstance(self.optimizer, list),
+                        "loss": isinstance(self.loss, list),
+                        "batch_size": isinstance(self.batch_size, list),
+                    }
+                    if variables["optimizer"]:
+                        opt = self.optimizer
+                    else:
+                        opt = previous_case_obj.optimizer
+
+                    if variables["loss"]:
+                        lll = self.loss
+                    else:
+                        lll = previous_case_obj.loss
+                    if variables["batch_size"]:
+                        bbss = self.batch_size
+                    else:
+                        bbss = previous_case_obj.batch_size
+                    previous_benchmark = previous_case_obj.best_result
+                    if self.previous_experiment.best_result:
+                        previous_benchmark = (
+                            self.previous_experiment.best_result
+                        )
+                    new_args["loss"] = lll
+                    new_args["optimizer"] = opt
+                    new_args["batch_size"] = bbss
+                    new_args["previous_benchmark"] = previous_benchmark
+
                 case_conf_list = self.case_configuration(
-                    model_name=model_name, model=model, **kwargs
+                    model_name=model_name, model=model, **new_args, **kwargs
                 )
                 for case_obj in case_conf_list:
                     self.conf.append(case_obj)

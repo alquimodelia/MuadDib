@@ -16,6 +16,8 @@ X_TIMESERIES = os.getenv("X_TIMESERIES", 168)
 Y_TIMESERIES = os.getenv("Y_TIMESERIES", 24)
 
 TARGET_VARIABLE = os.getenv("TARGET_VARIABLE")
+benchmark_data_folder = os.path.join(DATA_FOLDER, "benchmark", TARGET_VARIABLE)
+score_path = os.path.join(benchmark_data_folder, "benchmark.json")
 
 
 class DatasetManager:
@@ -61,6 +63,8 @@ class DatasetManager:
 
         self.keras_sequence_cls = keras_sequence_cls
         self.sequence_args = sequence_args or {}
+
+        self.benchmark_score_path = score_path
 
         self.setup()
 
