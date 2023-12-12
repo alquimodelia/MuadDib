@@ -58,6 +58,7 @@ class CaseModel:
         model_keras_file=None,
         n_filters=16,
         model_types=".keras",
+        case_to_study_name=None,
     ):
         self.MODEL_CONF_FOLDER = MODEL_CONF_FOLDER
 
@@ -82,6 +83,7 @@ class CaseModel:
 
         self.model_keras_file = model_keras_file
         self.name = name or self.get_name()
+        self.case_to_study_name = case_to_study_name
 
         self.input_args = {
             "X_timeseries": self.X_timeseries,
@@ -314,6 +316,10 @@ class ModelHalleck:
         self.__dict__.update(dict_to_restore)
 
     def creat_models_on_experiment(self):
+        # TODO: keep track of what is being studied
+        experiment_variables = set()
+        what_is_on_study = set()
+
         # create the model case for each model
         # archs to use
         list_vars = [
@@ -339,6 +345,8 @@ class ModelHalleck:
         archs_to_use = self.archs_to_use or previous_archs
         if not isinstance(archs_to_use, list):
             archs_to_use = [archs_to_use]
+        else:
+            what_is_on_study.add("archs")
         # hierarqy
         # 1 -list of vars
         # 2 - previous
@@ -352,6 +360,9 @@ class ModelHalleck:
                 continue
             if isinstance(self_var, list):
                 refactor_combinations[var] = self_var
+                what_is_on_study.add(var)
+                experiment_variables.add(self_var)
+
             else:
                 var_to_use = None
                 if self.previous_halleck:
@@ -368,9 +379,26 @@ class ModelHalleck:
             for combination in combinations
         ]
         models_to_experiment = {}
+        case_to_study_name = ""
         for arch in archs_to_use:
+            if "archs" in what_is_on_study:
+                case_to_study_name = arch
             for model_args in result_combinations:
-                casemodelobj = CaseModel(arquitecture=arch, **model_args)
+                for k, n in model_args.items():
+                    if isinstance(n, int):
+                        name_to_add = str(n)
+                    elif isinstance(n, str):
+                        name_to_add = n
+                    if k in what_is_on_study:
+                        if len(case_to_study_name) == 0:
+                            case_to_study_name = name_to_add
+                        else:
+                            case_to_study_name += f"_{name_to_add}"
+                casemodelobj = CaseModel(
+                    arquitecture=arch,
+                    **model_args,
+                    case_to_study_name=case_to_study_name,
+                )
                 models_to_experiment[casemodelobj.name] = casemodelobj
         self.models_to_experiment = models_to_experiment
         self.save(self.conf_file)

@@ -160,7 +160,7 @@ def train_on_call(args):
     print(case_name_train)
 
     exp_obj = experiments_dict[experiment_name_train]
-    # exp_obj.setup()
+    exp_obj.setup()
     case_obj = exp_obj.study_cases[case_name_train]
     if not case_obj.complete:
         case_obj.train_model()
@@ -230,8 +230,9 @@ def experiment(args):
 
         if exp.complete:
             continue
-        # if not getattr(exp, "conf", None):
-        #     exp.setup()
+        if not getattr(exp, "conf", None):
+            print("does this?")
+            exp.setup()
         for case_obj in exp.conf:
             case_name = str(case_obj.name)
             # case_obj.train_model()
