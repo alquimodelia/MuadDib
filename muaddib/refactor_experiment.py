@@ -298,13 +298,13 @@ class SpiceEyes:
     def after_load_setup(self):
         pass
 
-    def setup(self):
+    def setup(self, **kwargs):
         os.makedirs(self.obj_work_folder, exist_ok=True)
         self.predict_score_path = os.path.join(
             self.obj_work_folder, "predict_score.json"
         )
 
-        setup = self.obj_setup()
+        setup = self.obj_setup(**kwargs)
         if setup:
             self.save(path=self.conf_file)
 
@@ -565,16 +565,22 @@ class Experiment(SpiceEyes):
 
         new_Halleck = Experiment(**new_dict_Halleck_initilize)
         new_Halleck.__dict__.update(new_dict_Halleck)
-        new_Halleck.setup()
+        new_Halleck.setup(exp_configure=False)
+        new_Halleck.__dict__.update(new_dict_Halleck)
 
         return new_Halleck
 
-    def obj_setup(self, **kwargs):
+    def obj_setup(self, exp_configure=True, **kwargs):
         if self.previous_experiment:
             if not self.previous_experiment.validation_complete:
                 return False
-        self.halleck_configuration()
-        self.experiment_configuration()
+            if not getattr(
+                self.previous_experiment.halleck_obj, "best_archs", False
+            ):
+                return False
+        if exp_configure:
+            self.halleck_configuration()
+            self.experiment_configuration()
         self.set_benchmark_path()
         return True
 
@@ -608,6 +614,27 @@ class Experiment(SpiceEyes):
         self.halleck_obj.setup(conf_file=halleck_conf_file)
 
     def experiment_configuration(self):
+        # TODO: hacky way to just get MW or not
+        if self.previous_experiment:
+            if isinstance(self.loss, list):
+                last_worthy_case_losses = set(
+                    [f.loss for f in self.previous_experiment.worthy_cases]
+                )
+                MW_losses = [
+                    f for f in last_worthy_case_losses if "mirror" in f.name
+                ]
+                not_MW_losses = [
+                    f
+                    for f in last_worthy_case_losses
+                    if "mirror" not in f.name
+                ]
+                if len(MW_losses) > 0:
+                    self.loss = [f for f in self.loss if "mirror" in f.name]
+                else:
+                    self.loss = [
+                        f for f in self.loss if "mirror" not in f.name
+                    ]
+
         # TODO: keep track of what is being studied
         what_is_on_study = set()
         # configure hallecks
