@@ -19,7 +19,7 @@ from muaddib.shaihulud_utils import (
     write_dict_to_file,
 )
 
-VALIDATION_TARGET = os.getenv("VALIDATION_TARGET", "bscore")
+VALIDATION_TARGET = os.getenv("VALIDATION_TARGET", "EPEA")
 
 
 class SpiceEyes:
@@ -187,7 +187,8 @@ class SpiceEyes:
                     k: Case(conf_file=v) for k, v in value.items()
                 }
             elif key == "model_obj":
-                dict_to_restore[key] = open_model(value)
+                continue
+                # dict_to_restore[key] = open_model(value)
             elif "_fn" in key:
                 module_name, function_name = value.split(":")
                 module = importlib.import_module(module_name)
@@ -499,7 +500,13 @@ class Experiment(SpiceEyes):
                 # Assuming the sum is always with the same dataset
                 value = dict_to_loadA[key]
                 new_dict_Halleck[key] = value
-
+            elif key == "best_result":
+                A = dict_to_loadA[key] or np.nan
+                B = dict_to_loadB[key] or np.nan
+                value = np.nanmax([A, B])
+                if np.isnan(value):
+                    continue
+                new_dict_Halleck[key] = value
             else:
                 value_to_use = None
                 A = None
@@ -547,6 +554,9 @@ class Experiment(SpiceEyes):
             if t in new_dict_Halleck:
                 new_dict_Halleck.pop(t)
 
+        new_dict_Halleck["validation_complete"] = False
+        new_dict_Halleck["complete"] = True
+
         new_dict_Halleck_initilize = new_dict_Halleck.copy()
 
         list_pop = [
@@ -554,9 +564,9 @@ class Experiment(SpiceEyes):
             "conf",
             "worthy_models",
             "worthy_cases",
-            "validation_complete",
             "complete",
             "best_result",
+            "validation_complete",
         ]
 
         for t in list_pop:
@@ -761,6 +771,7 @@ class Experiment(SpiceEyes):
 
         elif prediction_score_exists:
             self.predict_score = load_json_dict(self.predict_score_path)
+        self.validation_complete = True
         self.write_report()
         # TODO: tinyDBBBB
         self.halleck_obj.set_best_case_model(
@@ -771,7 +782,7 @@ class Experiment(SpiceEyes):
     # TODO: change all this mess of report writing
     # TODO: outsource this somewhere else, its too specific for my thesis case.
     # TODO: modulate this between what defnies new stuf and what saves figs and stuf
-    def write_report(self):
+    def write_report(self, make_tex=True):
         print(f"writin report for {self.name}")
         import pandas as pd
 
@@ -795,11 +806,21 @@ class Experiment(SpiceEyes):
                 case_results[VALIDATION_TARGET]
                 >= self.previous_experiment.best_result
             ]
+            print("it does this shit?")
+            print(self.previous_experiment.name)
+            print(self.previous_experiment.worthy_models)
+            print(self.previous_experiment.best_result)
+            print(
+                case_results.sort_values(VALIDATION_TARGET, ascending=False)[
+                    [VALIDATION_TARGET, "name"]
+                ].head()
+            )
         else:
+            print("or this?")
             if os.path.exists(self.benchmark_score_file):
                 benchmark_score = load_json_dict(self.benchmark_score_file)
-            # if bscore then better than abs benchmark
-            if VALIDATION_TARGET in ["bscore", "bscoreB"]:
+            # if EPEA then better than abs benchmark
+            if VALIDATION_TARGET in ["EPEA", "EPEA_Bench"]:
                 better_scores = case_results[
                     case_results["abs error"] <= benchmark_score["abs error"]
                 ]
@@ -807,8 +828,8 @@ class Experiment(SpiceEyes):
                     better_scores[VALIDATION_TARGET] > 0
                 ]
 
-            # if bscore_norm then higher bscore_norm>0 when missing and surpulr better than benchmark
-            elif VALIDATION_TARGET in ["bscore_norm", "bscore_normB"]:
+            # if EPEA_norm then higher EPEA_norm>0 when missing and surpulr better than benchmark
+            elif VALIDATION_TARGET in ["EPEA_norm", "EPEA_Bench_norm"]:
                 better_scores = case_results[
                     case_results["alloc missing"]
                     <= benchmark_score["alloc missing"]
@@ -834,7 +855,8 @@ class Experiment(SpiceEyes):
                 better_scores = better_scores[
                     better_scores["alloc surplus"] > top_values_s
                 ]
-
+        print("is doing the wortgy")
+        print(better_scores.head())
         unique_values_list = better_scores["name"].unique().tolist()
         # just the best
         max_target = better_scores[VALIDATION_TARGET].max()
@@ -845,15 +867,15 @@ class Experiment(SpiceEyes):
         unique_values_list = rows_with_best["name"].unique().tolist()
 
         better_scores.reset_index(inplace=True, drop=True)
-        if self.forward_epochs:
-            forward_cases = case_results[
-                case_results["name"].isin(unique_values_list)
-            ]
+        # if self.forward_epochs:
+        #     forward_cases = case_results[
+        #         case_results["name"].isin(unique_values_list)
+        #     ]
 
-            forward_cases = forward_cases[
-                forward_cases["epoch"] <= self.forward_epochs
-            ]
-            self.best_result = max(forward_cases[VALIDATION_TARGET])
+        #     forward_cases = forward_cases[
+        #         forward_cases["epoch"] <= self.forward_epochs
+        #     ]
+        #     self.best_result = max(forward_cases[VALIDATION_TARGET])
 
         print("----------------------------------------------------")
         print("Worthy models are: ", unique_values_list)
@@ -863,235 +885,270 @@ class Experiment(SpiceEyes):
             for f in unique_values_list
             # if self.study_cases[f].worthy
         ]
-        if len(better_scores) > 0:
-            unique_values_list = better_scores["name"].unique().tolist()
-            path_schema_tex = os.path.join(
-                case_report_path,
-                f"experiment_results_{VALIDATION_TARGET}_better_than_previous_10.tex",
-            )
+        self.save(self.conf_file)
+        if make_tex:
+            if len(better_scores) > 0:
+                unique_values_list = better_scores["name"].unique().tolist()
+                path_schema_tex = os.path.join(
+                    case_report_path,
+                    f"experiment_results_{VALIDATION_TARGET}_better_than_previous_10.tex",
+                )
 
-            better_scores.head(10).to_latex(
+                better_scores.head(10).to_latex(
+                    path_schema_tex,
+                    escape=False,
+                    index=False,
+                    float_format="%.2f",
+                )
+
+                path_schema_tex = os.path.join(
+                    case_report_path,
+                    f"experiment_results_{VALIDATION_TARGET}_better_than_previous.tex",
+                )
+
+                better_scores.to_latex(
+                    path_schema_tex,
+                    escape=False,
+                    index=False,
+                    float_format="%.2f",
+                )
+                # Get the best score for each unique value in the "name" column
+                best_scores = better_scores.loc[
+                    better_scores.groupby("name").idxmax()[COLUMN_TO_SORT_BY]
+                ].sort_values(
+                    by=COLUMN_TO_SORT_BY, ascending=ascending_to_sort
+                )
+
+                path_schema_tex = os.path.join(
+                    case_report_path,
+                    f"experiment_results_{VALIDATION_TARGET}_better_than_previous_best_of_each.tex",
+                )
+
+                best_scores.to_latex(
+                    path_schema_tex,
+                    escape=False,
+                    index=False,
+                    float_format="%.2f",
+                )
+
+            # All results, ordered by epoch
+            path_schema_csv = os.path.join(
+                case_report_path, f"experiment_results_{VALIDATION_TARGET}.csv"
+            )
+            path_schema_tex = os.path.join(
+                case_report_path, f"experiment_results_{VALIDATION_TARGET}.tex"
+            )
+            case_results.sort_values(
+                by=COLUMN_TO_SORT_BY, ascending=ascending_to_sort, inplace=True
+            )
+            if len(case_results) > 10:
+                case_results_sort = pd.concat(
+                    [case_results.head(), case_results.tail()]
+                )
+                case_results_sort.to_csv(path_schema_csv, index=False)
+                case_results_sort.to_latex(
+                    path_schema_tex,
+                    escape=False,
+                    index=False,
+                    float_format="%.2f",
+                )
+                path_schema_csv = os.path.join(
+                    case_report_path,
+                    f"experiment_results_{VALIDATION_TARGET}_complete.csv",
+                )
+                path_schema_tex = os.path.join(
+                    case_report_path,
+                    f"experiment_results_{VALIDATION_TARGET}_complete.tex",
+                )
+
+            case_results.to_csv(path_schema_csv, index=False)
+            case_results.to_latex(
                 path_schema_tex, escape=False, index=False, float_format="%.2f"
             )
 
-            path_schema_tex = os.path.join(
-                case_report_path,
-                f"experiment_results_{VALIDATION_TARGET}_better_than_previous.tex",
-            )
-
-            better_scores.to_latex(
-                path_schema_tex, escape=False, index=False, float_format="%.2f"
-            )
             # Get the best score for each unique value in the "name" column
-            best_scores = better_scores.loc[
-                better_scores.groupby("name").idxmax()[COLUMN_TO_SORT_BY]
+            best_scores = case_results.loc[
+                case_results.groupby("name").idxmax()[COLUMN_TO_SORT_BY]
             ].sort_values(by=COLUMN_TO_SORT_BY, ascending=ascending_to_sort)
 
             path_schema_tex = os.path.join(
                 case_report_path,
-                f"experiment_results_{VALIDATION_TARGET}_better_than_previous_best_of_each.tex",
+                f"experiment_results_{VALIDATION_TARGET}_best_of_each.tex",
             )
 
             best_scores.to_latex(
                 path_schema_tex, escape=False, index=False, float_format="%.2f"
             )
 
-        # All results, ordered by epoch
-        path_schema_csv = os.path.join(
-            case_report_path, f"experiment_results_{VALIDATION_TARGET}.csv"
-        )
-        path_schema_tex = os.path.join(
-            case_report_path, f"experiment_results_{VALIDATION_TARGET}.tex"
-        )
-        case_results.sort_values(
-            by=COLUMN_TO_SORT_BY, ascending=ascending_to_sort, inplace=True
-        )
-        if len(case_results) > 10:
-            case_results_sort = pd.concat(
-                [case_results.head(), case_results.tail()]
-            )
-            case_results_sort.to_csv(path_schema_csv, index=False)
-            case_results_sort.to_latex(
-                path_schema_tex, escape=False, index=False, float_format="%.2f"
-            )
-            path_schema_csv = os.path.join(
-                case_report_path,
-                f"experiment_results_{VALIDATION_TARGET}_complete.csv",
+            # Get the 2nd and 3rd best scores for each unique value in the "name" column
+            if ascending_to_sort is False:
+                second_third_best_scores = case_results.groupby("name").apply(
+                    lambda x: x.nlargest(3, COLUMN_TO_SORT_BY)
+                )
+            else:
+                second_third_best_scores = case_results.groupby("name").apply(
+                    lambda x: x.nsmallest(3, COLUMN_TO_SORT_BY)
+                )
+
+            second_third_best_scores.sort_values(
+                by=COLUMN_TO_SORT_BY, ascending=ascending_to_sort, inplace=True
             )
             path_schema_tex = os.path.join(
                 case_report_path,
-                f"experiment_results_{VALIDATION_TARGET}_complete.tex",
+                f"experiment_results_{VALIDATION_TARGET}_best3.tex",
             )
 
-        case_results.to_csv(path_schema_csv, index=False)
-        case_results.to_latex(
-            path_schema_tex, escape=False, index=False, float_format="%.2f"
-        )
-
-        # Get the best score for each unique value in the "name" column
-        best_scores = case_results.loc[
-            case_results.groupby("name").idxmax()[COLUMN_TO_SORT_BY]
-        ].sort_values(by=COLUMN_TO_SORT_BY, ascending=ascending_to_sort)
-
-        path_schema_tex = os.path.join(
-            case_report_path,
-            f"experiment_results_{VALIDATION_TARGET}_best_of_each.tex",
-        )
-
-        best_scores.to_latex(
-            path_schema_tex, escape=False, index=False, float_format="%.2f"
-        )
-
-        # Get the 2nd and 3rd best scores for each unique value in the "name" column
-        if ascending_to_sort is False:
-            second_third_best_scores = case_results.groupby("name").apply(
-                lambda x: x.nlargest(3, COLUMN_TO_SORT_BY)
-            )
-        else:
-            second_third_best_scores = case_results.groupby("name").apply(
-                lambda x: x.nsmallest(3, COLUMN_TO_SORT_BY)
+            second_third_best_scores.to_latex(
+                path_schema_tex, escape=False, index=False, float_format="%.2f"
             )
 
-        second_third_best_scores.sort_values(
-            by=COLUMN_TO_SORT_BY, ascending=ascending_to_sort, inplace=True
-        )
-        path_schema_tex = os.path.join(
-            case_report_path,
-            f"experiment_results_{VALIDATION_TARGET}_best3.tex",
-        )
-
-        second_third_best_scores.to_latex(
-            path_schema_tex, escape=False, index=False, float_format="%.2f"
-        )
-
-        no_missin_scores = case_results[case_results["bscore m"] >= 0]
-        no_missin_scores = no_missin_scores[no_missin_scores["bscore s"] >= 0]
-        no_missin_scores = no_missin_scores.dropna().sort_values(
-            by=VALIDATION_TARGET, ascending=False
-        )
-        # if len(no_missin_scores[VALIDATION_TARGET]) > 0:
-        #     self.best_result = max(no_missin_scores[VALIDATION_TARGET])
-
-        path_schema_tex = os.path.join(
-            case_report_path,
-            f"experiment_results_{VALIDATION_TARGET}_best_10_under_benchmark.tex",
-        )
-
-        no_missin_scores.head(10).to_latex(
-            path_schema_tex, escape=False, index=False, float_format="%.2f"
-        )
-
-        path_schema_tex = os.path.join(
-            case_report_path,
-            f"experiment_results_{VALIDATION_TARGET}_best_under_benchmark.tex",
-        )
-
-        no_missin_scores.to_latex(
-            path_schema_tex, escape=False, index=False, float_format="%.2f"
-        )
-        if self.epochs > 50:
-            no_missin_scores2 = case_results[case_results["bscore m"] >= 0]
-            no_missin_scores2 = no_missin_scores2[
-                no_missin_scores2["bscore s"] >= 0
+            no_missin_scores = case_results[case_results["EPEA_F"] >= 0]
+            no_missin_scores = no_missin_scores[
+                no_missin_scores["EPEA_D"] >= 0
             ]
-            no_missin_scores2 = no_missin_scores2[
-                no_missin_scores2["epoch"] <= 50
-            ]
-
-            no_missin_scores2 = no_missin_scores2.dropna().sort_values(
+            no_missin_scores = no_missin_scores.dropna().sort_values(
                 by=VALIDATION_TARGET, ascending=False
             )
-            # if len(no_missin_scores2[VALIDATION_TARGET]) > 0:
-            #     self.best_result = max(no_missin_scores2[VALIDATION_TARGET])
+            # if len(no_missin_scores[VALIDATION_TARGET]) > 0:
+            #     self.best_result = max(no_missin_scores[VALIDATION_TARGET])
 
             path_schema_tex = os.path.join(
                 case_report_path,
-                f"experiment_results_{VALIDATION_TARGET}_best_10_under_benchmarkminu50epochs.tex",
+                f"experiment_results_{VALIDATION_TARGET}_best_10_under_benchmark.tex",
             )
 
-            no_missin_scores2.head(10).to_latex(
+            no_missin_scores.head(10).to_latex(
                 path_schema_tex, escape=False, index=False, float_format="%.2f"
             )
 
             path_schema_tex = os.path.join(
                 case_report_path,
-                f"experiment_results_{VALIDATION_TARGET}_best_under_benchmark_minu50epochs.tex",
+                f"experiment_results_{VALIDATION_TARGET}_best_under_benchmark.tex",
             )
 
-            no_missin_scores2.to_latex(
+            no_missin_scores.to_latex(
                 path_schema_tex, escape=False, index=False, float_format="%.2f"
             )
-        better_scores = []
+            if self.epochs > 50:
+                no_missin_scores2 = case_results[case_results["EPEA_F"] >= 0]
+                no_missin_scores2 = no_missin_scores2[
+                    no_missin_scores2["EPEA_D"] >= 0
+                ]
+                no_missin_scores2 = no_missin_scores2[
+                    no_missin_scores2["epoch"] <= 50
+                ]
 
-        if self.previous_experiment:
-            better_scores = no_missin_scores[
-                no_missin_scores[VALIDATION_TARGET]
-                >= self.previous_experiment.best_result
-            ]
-        if len(better_scores) > 0:
-            unique_values_list = better_scores["name"].unique().tolist()
+                no_missin_scores2 = no_missin_scores2.dropna().sort_values(
+                    by=VALIDATION_TARGET, ascending=False
+                )
+                # if len(no_missin_scores2[VALIDATION_TARGET]) > 0:
+                #     self.best_result = max(no_missin_scores2[VALIDATION_TARGET])
+
+                path_schema_tex = os.path.join(
+                    case_report_path,
+                    f"experiment_results_{VALIDATION_TARGET}_best_10_under_benchmarkminu50epochs.tex",
+                )
+
+                no_missin_scores2.head(10).to_latex(
+                    path_schema_tex,
+                    escape=False,
+                    index=False,
+                    float_format="%.2f",
+                )
+
+                path_schema_tex = os.path.join(
+                    case_report_path,
+                    f"experiment_results_{VALIDATION_TARGET}_best_under_benchmark_minu50epochs.tex",
+                )
+
+                no_missin_scores2.to_latex(
+                    path_schema_tex,
+                    escape=False,
+                    index=False,
+                    float_format="%.2f",
+                )
+            better_scores = []
+
+            if self.previous_experiment:
+                better_scores = no_missin_scores[
+                    no_missin_scores[VALIDATION_TARGET]
+                    >= self.previous_experiment.best_result
+                ]
+            if len(better_scores) > 0:
+                unique_values_list = better_scores["name"].unique().tolist()
+                path_schema_tex = os.path.join(
+                    case_report_path,
+                    f"experiment_results_{VALIDATION_TARGET}_better_than_previous_10_under_benchmark.tex",
+                )
+
+                better_scores.head(10).to_latex(
+                    path_schema_tex,
+                    escape=False,
+                    index=False,
+                    float_format="%.2f",
+                )
+
+                path_schema_tex = os.path.join(
+                    case_report_path,
+                    f"experiment_results_{VALIDATION_TARGET}_better_than_previous_under_benchmark.tex",
+                )
+
+                better_scores.to_latex(
+                    path_schema_tex,
+                    escape=False,
+                    index=False,
+                    float_format="%.2f",
+                )
+                # self.best_result = max(better_scores[VALIDATION_TARGET])
+
+            else:
+                unique_values_list = no_missin_scores["name"].unique().tolist()
+            # print("----------------------------------------------------")
+            # print("Worthy models are: ", unique_values_list)
+            # self.worthy_models = unique_values_list
+            # self.worthy_cases = [
+            #     self.study_cases[f]
+            #     for f in unique_values_list
+            #     # if self.study_cases[f].worthy
+            # ]
+
+            if ascending_to_sort is False:
+                no_missin_scores = no_missin_scores.groupby("name").apply(
+                    lambda x: x.nlargest(3, COLUMN_TO_SORT_BY)
+                )
+            else:
+                no_missin_scores = no_missin_scores.groupby("name").apply(
+                    lambda x: x.nsmallest(3, COLUMN_TO_SORT_BY)
+                )
+
+            no_missin_scores.sort_values(
+                by=VALIDATION_TARGET, ascending=False, inplace=True
+            )
+
             path_schema_tex = os.path.join(
                 case_report_path,
-                f"experiment_results_{VALIDATION_TARGET}_better_than_previous_10_under_benchmark.tex",
+                f"experiment_results_{VALIDATION_TARGET}_best3_under_benchmark.tex",
             )
 
-            better_scores.head(10).to_latex(
+            no_missin_scores.to_latex(
                 path_schema_tex, escape=False, index=False, float_format="%.2f"
             )
 
-            path_schema_tex = os.path.join(
-                case_report_path,
-                f"experiment_results_{VALIDATION_TARGET}_better_than_previous_under_benchmark.tex",
+            # TODO: make a plot with the real data and the best predictions
+            # the plot is the one year, one month, one week, one day
+            # maybe the best and the worse of each
+            benchmark_prediction_file = self.benchmark_score_file.replace(
+                ".json", "npz"
             )
-
-            better_scores.to_latex(
-                path_schema_tex, escape=False, index=False, float_format="%.2f"
-            )
-            # self.best_result = max(better_scores[VALIDATION_TARGET])
-
-        else:
-            unique_values_list = no_missin_scores["name"].unique().tolist()
-        # print("----------------------------------------------------")
-        # print("Worthy models are: ", unique_values_list)
-        # self.worthy_models = unique_values_list
-        # self.worthy_cases = [
-        #     self.study_cases[f]
-        #     for f in unique_values_list
-        #     # if self.study_cases[f].worthy
-        # ]
-
-        if ascending_to_sort is False:
-            no_missin_scores = no_missin_scores.groupby("name").apply(
-                lambda x: x.nlargest(3, COLUMN_TO_SORT_BY)
-            )
-        else:
-            no_missin_scores = no_missin_scores.groupby("name").apply(
-                lambda x: x.nsmallest(3, COLUMN_TO_SORT_BY)
-            )
-
-        no_missin_scores.sort_values(
-            by=VALIDATION_TARGET, ascending=False, inplace=True
-        )
-
-        path_schema_tex = os.path.join(
-            case_report_path,
-            f"experiment_results_{VALIDATION_TARGET}_best3_under_benchmark.tex",
-        )
-
-        no_missin_scores.to_latex(
-            path_schema_tex, escape=False, index=False, float_format="%.2f"
-        )
-
-        # TODO: make a plot with the real data and the best predictions
-        # the plot is the one year, one month, one week, one day
-        # maybe the best and the worse of each
-        benchmark_prediction_file = self.benchmark_score_file.replace(
-            ".json", "npz"
-        )
 
     def visualize_report(self):
         # TODO: change this path thingys
         folder_figures = self.obj_work_folder.replace("experiments", "reports")
+        import glob
+
+        qry = "{folder_figures}/**/**.png"
+        if len(glob.glob(qry, recursive=True)) > 0:
+            return
 
         METRICS_TO_CHECK = os.getenv("METRICS_TO_CHECK", None)
         metrics_to_check = None

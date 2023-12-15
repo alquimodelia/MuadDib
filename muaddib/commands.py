@@ -92,6 +92,10 @@ def reset_configurations(args):
     list_of_all_conf_file = glob.glob(qry, recursive=True)
     for cf in list_of_all_conf_file:
         os.remove(cf)
+    qry = f"{EXPERIMENT_FOLDER}/**/**predict_score.json"
+    list_of_all_conf_file = glob.glob(qry, recursive=True)
+    for cf in list_of_all_conf_file:
+        os.remove(cf)
 
 
 def process_data(args):
@@ -162,8 +166,6 @@ def train_model_process(case_obj):
 
 
 def train_on_call(args):
-    print("-------------------")
-    print("Runnig train on call")
     start(args)
     validation_target = getattr(args, "validation_target", None)
     if validation_target is not None:
@@ -171,8 +173,11 @@ def train_on_call(args):
 
     experiment_name_train = args.experiment
     case_name_train = args.case
+    print("-------------------")
+    print("Runnig train on call")
     print(experiment_name_train)
     print(case_name_train)
+    print("-------------------")
 
     exp_obj = experiments_dict[experiment_name_train]
     exp_obj.setup()
@@ -248,6 +253,9 @@ def experiment(args):
         print("Is complete?", exp.complete)
 
         if exp.complete:
+            if not exp.validation_complete:
+                exp.validate_experiment()
+                exp.visualize_report()
             continue
         if not getattr(exp, "conf", None):
             print("does this?")
@@ -277,3 +285,9 @@ def experiment(args):
         print([f.name for f in exp.worthy_cases])
 
         print(exp.worthy_cases)
+        print("best result:", f"{exp.name} with: {exp.best_result}")
+        if exp.previous_experiment:
+            print(
+                "previous name result",
+                f"{exp.previous_experiment.name} with: {exp.previous_experiment.best_result}",
+            )

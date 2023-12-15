@@ -36,6 +36,7 @@ MODELS_ARCHS = {
     },
     "UNET": {"arch": "UNETArch"},
     "EncoderDecoder": {"arch": "EncoderDecoder"},
+    # "Transformer": {"arch": "Transformer"},
 }
 
 
@@ -53,6 +54,7 @@ class CaseModel:
         activation_middle="relu",
         activation_end="relu",
         keras_backend="torch",
+        model_conf_file=None,
         conf_file=None,
         case_model_folder=None,
         model_keras_file=None,
@@ -77,12 +79,14 @@ class CaseModel:
 
         self.keras_backend = keras_backend
 
+        self.model_conf_file = model_conf_file
         self.conf_file = conf_file
 
         self.CASE_MODEL_FOLDER = case_model_folder
+        self.case_work_folder = None
+        self.freq_saves_path = None
 
         self.model_keras_file = model_keras_file
-        self.name = name or self.get_name()
         self.case_to_study_name = case_to_study_name
 
         self.input_args = {
@@ -93,7 +97,10 @@ class CaseModel:
             "activation_middle": self.activation_middle,
             "activation_end": self.activation_end,
         }
-
+        self.name = None
+        if self.conf_file:
+            self.load(self.conf_file)
+        self.name = name or self.name or self.get_name()
         self.set_model_conf()
 
     def get_name(self):
@@ -118,11 +125,11 @@ class CaseModel:
         return name
 
     def set_model_conf(self, architecture_args=None, input_args=None):
-        if self.conf_file is None:
-            self.conf_file = os.path.join(
+        if self.model_conf_file is None:
+            self.model_conf_file = os.path.join(
                 self.MODEL_CONF_FOLDER, f"{self.name}.json"
             )
-        if not os.path.exists(self.conf_file):
+        if not os.path.exists(self.model_conf_file):
             architecture_args = architecture_args or {}
             if self.n_filters:
                 architecture_args.update(
@@ -150,7 +157,7 @@ class CaseModel:
             forearch = model_conf_arch(**input_args)
             model_obj = forearch.architecture(**architecture_args_to_use)
             model_json = model_obj.to_json()
-            write_dict_to_file(model_json, self.conf_file)
+            write_dict_to_file(model_json, self.model_conf_file)
 
     def check_trained_epochs(self):
         # Checks how many epochs were trained
@@ -173,10 +180,18 @@ class CaseModel:
 
     def set_case_model(self, loss=None, CASE_MODEL_FOLDER=None):
         self.CASE_MODEL_FOLDER = self.CASE_MODEL_FOLDER or CASE_MODEL_FOLDER
-        self.case_work_folder = os.path.join(self.CASE_MODEL_FOLDER, self.name)
-        self.freq_saves_path = os.path.join(
-            self.CASE_MODEL_FOLDER, "freq_saves"
-        )
+        if not self.case_work_folder:
+            self.case_work_folder = os.path.join(
+                self.CASE_MODEL_FOLDER, self.name
+            )
+        if not self.freq_saves_path:
+            self.freq_saves_path = os.path.join(
+                self.CASE_MODEL_FOLDER, "freq_saves"
+            )
+        if not self.conf_file:
+            self.conf_file = os.path.join(
+                self.CASE_MODEL_FOLDER, "halleck_case_model_conf.json"
+            )
         os.makedirs(self.freq_saves_path, exist_ok=True)
         self.check_trained_epochs()
         model_obj = None
@@ -186,8 +201,46 @@ class CaseModel:
                 self.last_epoch_path, custom_objects=custom_objects
             )
         else:
-            model_obj = open_model(self.conf_file)
+            model_obj = open_model(self.model_conf_file)
         self.model_obj = model_obj
+        self.save(self.conf_file)
+
+    def save(self, path=None):
+        dict_to_load = self.__dict__.copy()
+        dict_to_save = {}
+        for key, value in dict_to_load.items():
+            dict_to_save[key] = value
+            if value is None:
+                continue
+
+            if key == "model_obj":
+                dict_to_save[key] = self.model_conf_file
+
+            if not is_jsonable(dict_to_save[key]):
+                dict_to_save[key] = (
+                    dict_to_save[key].name
+                    if hasattr(dict_to_save[key], "name")
+                    else str(dict_to_save[key])
+                )
+        write_dict_to_file(dict_to_save=dict_to_save, path=path)
+
+    def load(self, path=None):
+        path = path or self.conf_file
+        dict_to_load = load_json_dict(path)
+        # with open(path, "r") as f:
+        #     dict_to_load = json.load(f)
+        # Create a new dictionary to store the loaded data
+        dict_to_restore = {}
+
+        # Restore the original data structures and objects
+        for key, value in dict_to_load.items():
+            dict_to_restore[key] = value
+            if value is None:
+                continue
+            elif key == "model_obj":
+                dict_to_restore[key] = open_model(value)
+
+        self.__dict__.update(dict_to_restore)
 
 
 class ModelHalleck:
@@ -343,7 +396,9 @@ class ModelHalleck:
                 continue
             elif key == "models_to_experiment":
                 # Load a Case
-                dict_to_restore[key] = {k: CaseModel(name=k) for k in value}
+                dict_to_restore[key] = {
+                    k: CaseModel(conf_file=k) for k in value
+                }
             elif key in ["previous_halleck"]:
                 dict_to_restore[key] = ModelHalleck(conf_file=value)
 
