@@ -20,7 +20,7 @@ from muaddib.shaihulud_utils import (
 )
 
 MLFLOW_STATE = os.getenv("MLFLOW_STATE", "off")
-VALIDATION_TARGET = os.getenv("VALIDATION_TARGET", "bscore")
+VALIDATION_TARGET = os.getenv("VALIDATION_TARGET", "EPEA")
 
 if MLFLOW_STATE == "on":
     import mlflow
@@ -1086,8 +1086,8 @@ class Experiment(SpiceEyes):
         else:
             if os.path.exists(self.benchmark_score_file):
                 benchmark_score = load_json_dict(self.benchmark_score_file)
-            # if bscore then better than abs benchmark
-            if VALIDATION_TARGET in ["bscore", "bscoreB"]:
+            # if EPEA then better than abs benchmark
+            if VALIDATION_TARGET in ["EPEA", "EPEA_Bench"]:
                 better_scores = case_results[
                     case_results["abs error"] <= benchmark_score["abs error"]
                 ]
@@ -1095,8 +1095,8 @@ class Experiment(SpiceEyes):
                     better_scores[VALIDATION_TARGET] > 0
                 ]
 
-            # if bscore_norm then higher bscore_norm>0 when missing and surpulr better than benchmark
-            elif VALIDATION_TARGET in ["bscore_norm", "bscore_normB"]:
+            # if EPEA_norm then higher EPEA_norm>0 when missing and surpulr better than benchmark
+            elif VALIDATION_TARGET in ["EPEA_norm", "EPEA_Bench_norm"]:
                 better_scores = case_results[
                     case_results["alloc missing"]
                     <= benchmark_score["alloc missing"]
@@ -1232,8 +1232,8 @@ class Experiment(SpiceEyes):
             path_schema_tex, escape=False, index=False, float_format="%.2f"
         )
 
-        no_missin_scores = case_results[case_results["bscore m"] >= 0]
-        no_missin_scores = no_missin_scores[no_missin_scores["bscore s"] >= 0]
+        no_missin_scores = case_results[case_results["EPEA_F"] >= 0]
+        no_missin_scores = no_missin_scores[no_missin_scores["EPEA_D"] >= 0]
         no_missin_scores = no_missin_scores.dropna().sort_values(
             by=VALIDATION_TARGET, ascending=False
         )
@@ -1258,9 +1258,9 @@ class Experiment(SpiceEyes):
             path_schema_tex, escape=False, index=False, float_format="%.2f"
         )
         if self.epochs > 50:
-            no_missin_scores2 = case_results[case_results["bscore m"] >= 0]
+            no_missin_scores2 = case_results[case_results["EPEA_F"] >= 0]
             no_missin_scores2 = no_missin_scores2[
-                no_missin_scores2["bscore s"] >= 0
+                no_missin_scores2["EPEA_D"] >= 0
             ]
             no_missin_scores2 = no_missin_scores2[
                 no_missin_scores2["epoch"] <= 50
