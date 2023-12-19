@@ -182,8 +182,17 @@ def train_on_call(args):
     exp_obj = experiments_dict[experiment_name_train]
     exp_obj.setup()
     case_obj = exp_obj.study_cases[case_name_train]
-    if not case_obj.complete:
-        case_obj.train_model()
+    run_training = not case_obj.complete or exp_obj.final_experiment
+    extra_args = {}
+    if run_training:
+        print(case_obj.name)
+        print(case_obj.epochs)
+        print(exp_obj.epochs)
+
+        if case_obj.epochs < exp_obj.epochs:
+            case_obj.epochs = exp_obj.epochs
+            extra_args["run_anyway"] = True
+        case_obj.train_model(**extra_args)
     case_obj.validate_model()
     # exp_obj.validate_experiment()
     # exp_obj.visualize_report()
@@ -264,8 +273,10 @@ def experiment(args):
             case_name = str(case_obj.name)
             # case_obj.train_model()
             # case_obj.validate_model()
-
-            if not case_obj.complete:
+            run_training = not case_obj.complete or exp.final_experiment
+            # if case_obj.epochs>exp.epochs:
+            #     run_training=False
+            if run_training:
                 #     command = (
                 #         f"KERAS_BACKEND={case_obj.keras_backend}"
                 #         f" muaddib train_on_experiment_loop --experiment={experiment_name} --case={case_name}"

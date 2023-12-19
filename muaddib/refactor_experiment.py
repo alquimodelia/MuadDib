@@ -45,7 +45,11 @@ class SpiceEyes:
         conf_file=None,
         get_models_on_experiment_fn=None,
         get_models_args=None,
+        activation_end=None,
+        activation_middle=None,
         model_types=".keras",
+        final_experiment=False,
+        setup_args=None,
     ):
         self.work_folder = work_folder
         self.name = name
@@ -75,8 +79,12 @@ class SpiceEyes:
 
         else:
             self.epochs = epochs
+            if "Transformer" in self.name:
+                self.epochs = 10
             self.optimizer = optimizer
             self.batch_size = batch_size
+            self.activation_end = activation_end
+            self.activation_middle = activation_middle
             self.callbacks = callbacks or []
             self.loss = loss or MeanSquaredError()
             self.metrics = metrics or ["root_mean_squared_error"]
@@ -92,7 +100,9 @@ class SpiceEyes:
             self.validation_complete = False
             self.model_types = model_types
             self.best_result = None
-            self.setup()
+            self.final_experiment = final_experiment
+            setup_args = setup_args or {}
+            self.setup(**setup_args)
 
     def save(self, path=None):
         dict_to_load = self.__dict__.copy()
@@ -332,7 +342,7 @@ class Case(SpiceEyes):
 
         if epocs_to_train < 1:
             self.complete = True
-            return
+            return False
 
         callbacks = []
         if not isinstance(self.callbacks, list):
@@ -377,7 +387,7 @@ class Case(SpiceEyes):
     def after_load_setup(self):
         self.obj_setup()
 
-    def obj_setup(self):
+    def obj_setup(self, exp_configure=True, **kwargs):
         self.halleck_setup()
         self.model_keras_path = os.path.join(
             self.obj_work_folder, f"{self.name}.keras"
@@ -389,9 +399,14 @@ class Case(SpiceEyes):
         self.set_fit_args()
         return True
 
-    def train_model(self):
-        if self.complete:
+    def train_model(self, run_anyway=False):
+        if self.complete and not run_anyway:
             return
+        elif not getattr(self, "fit_args", False):
+            self.set_compile_args()
+            if not self.set_fit_args():
+                return
+
         print("-----------------------------------------------------------")
         # print(f"Training Model {self.name} from {self.experiment_name}")
 
@@ -464,12 +479,19 @@ class Experiment(SpiceEyes):
         experiment_archs=None,
         previous_experiment=None,
         forward_epochs=None,
+        backward_epochs=None,
+        final_experiment_fn=None,
+        mode_for_best=None,
         **kwargs,
     ):
         self.halleck_obj = halleck_obj
         self.experiment_archs = experiment_archs
         self.previous_experiment = previous_experiment
         self.forward_epochs = forward_epochs
+        self.backward_epochs = backward_epochs
+        self.final_experiment_fn = final_experiment_fn
+        self.mode_for_best = mode_for_best or os.getenv("MODE_FOR_BEST", None)
+
         super().__init__(obj_type="experiment", **kwargs)
 
     @staticmethod
@@ -610,6 +632,8 @@ class Experiment(SpiceEyes):
                 "Y_timeseries": self.DataManager.Y_timeseries,
                 "n_features_predict": self.DataManager.n_features_predict,
                 "n_features_train": self.DataManager.n_features_train,
+                "activation_middle": self.activation_middle,
+                "activation_end": self.activation_end,
                 "conf_file": halleck_conf_file,
             }
             if self.experiment_archs:
@@ -657,6 +681,9 @@ class Experiment(SpiceEyes):
         for var in list_vars:
             self_var = getattr(self, var)
             if isinstance(self_var, list):
+                if len(self_var) == 1:
+                    self_var = self_var[0]
+            if isinstance(self_var, list):
                 refactor_combinations[var] = self_var
                 # TODO: keep track of what is being studied
                 # experiment_variables.add(self_var)
@@ -667,8 +694,20 @@ class Experiment(SpiceEyes):
                 # how do  we do for worthy worthy_cases? or for one best case scenrio?
                 if self.previous_experiment:
                     var_to_use = getattr(self.previous_experiment, var)
+                    if isinstance(var_to_use, list):
+                        if len(var_to_use) == 1:
+                            var_to_use = var_to_use[0]
+
+                    if isinstance(var_to_use, list):
+                        var_to_use = [
+                            getattr(f, var)
+                            for f in self.previous_experiment.worthy_cases
+                        ]
                 var_to_use = var_to_use or self_var
-                refactor_combinations[var] = [var_to_use]
+                setattr(self, var, var_to_use)
+                if not isinstance(var_to_use, list):
+                    var_to_use = [var_to_use]
+                refactor_combinations[var] = var_to_use
 
         # Generate all combinations of values
         combinations = list(itertools.product(*refactor_combinations.values()))
@@ -774,9 +813,7 @@ class Experiment(SpiceEyes):
         self.validation_complete = True
         self.write_report()
         # TODO: tinyDBBBB
-        self.halleck_obj.set_best_case_model(
-            [f.model_case_obj.arquitecture for f in self.worthy_cases]
-        )
+        self.halleck_obj.set_best_case_model(self.worthy_cases)
         self.halleck_obj.save(self.halleck_obj.conf_file)
 
     # TODO: change all this mess of report writing
@@ -791,14 +828,78 @@ class Experiment(SpiceEyes):
             "experiments", "reports"
         )
         os.makedirs(case_report_path, exist_ok=True)
-
-        case_results = pd.DataFrame(self.predict_score)
-
         COLUMN_TO_SORT_BY = VALIDATION_TARGET
         ascending_to_sort = False
 
+        case_results = pd.DataFrame(self.predict_score)
+        bbb = max(case_results[VALIDATION_TARGET])
+        bbb_case = case_results[case_results[VALIDATION_TARGET] == bbb]
+        unique_values_list = bbb_case["name"].unique().tolist()
+
+        print("best Value is:", bbb)
+        print("Best case is:")
+        print(bbb_case[["name", VALIDATION_TARGET, "epoch"]])
+        if self.mode_for_best == "highest_stable":
+            grouped_mean = (
+                case_results[["name", VALIDATION_TARGET]]
+                .groupby("name")
+                .mean()
+            )
+            grouped_std = (
+                case_results[["name", VALIDATION_TARGET]].groupby("name").std()
+            )
+            mean_mean = grouped_mean[VALIDATION_TARGET].mean()
+            above_mean = grouped_mean[
+                grouped_mean[VALIDATION_TARGET] >= mean_mean
+            ]
+            above_mean_name = above_mean.index.unique().tolist()
+            above_mean_cases = case_results[
+                case_results["name"].isin(above_mean_name)
+            ]
+            above_mean_cases_std = grouped_std[
+                grouped_std.index.isin(above_mean_name)
+            ]
+            min_std = above_mean_cases_std.min().item()
+            min_std_cases = above_mean_cases_std[
+                above_mean_cases_std[VALIDATION_TARGET] <= min_std
+            ]
+            unique_values_list = min_std_cases.index.unique().tolist()
+            case_results = case_results[
+                case_results["name"].isin(unique_values_list)
+            ]
+
+        if self.epochs < max(case_results["epoch"]):
+            smaller_epochs = min(self.epochs, max(case_results["epoch"]))
+            case_results = case_results[
+                case_results["epoch"] <= smaller_epochs
+            ]
+
         #  Best result
         self.best_result = max(case_results[VALIDATION_TARGET])
+        if self.final_experiment:
+            best_result_m = case_results[
+                case_results[VALIDATION_TARGET] == self.best_result
+            ]
+            epoca = int(best_result_m["epoch"].item())
+            best_result_m_name = best_result_m["name"].unique().tolist()[0]
+            best_study_case = self.study_cases[best_result_m_name]
+            prediciotn_saves = [
+                f
+                for f in best_study_case.model_case_obj.list_freq_saves
+                if str(epoca) in f
+            ]
+            prediciotn_saves = [
+                f.replace("freq_saves", "freq_predictions").replace(
+                    ".keras", ".npz"
+                )
+                for f in prediciotn_saves
+            ][0]
+            if self.final_experiment_fn:
+                self.final_experiment_fn(
+                    prediciotn_saves,
+                    f"{self.DataManager.name}:{best_result_m_name}",
+                    VALIDATION_TARGET,
+                )
 
         # Best from previous
         if self.previous_experiment:
@@ -806,38 +907,32 @@ class Experiment(SpiceEyes):
                 case_results[VALIDATION_TARGET]
                 >= self.previous_experiment.best_result
             ]
-            print("it does this shit?")
-            print(self.previous_experiment.name)
-            print(self.previous_experiment.worthy_models)
-            print(self.previous_experiment.best_result)
-            print(
-                case_results.sort_values(VALIDATION_TARGET, ascending=False)[
-                    [VALIDATION_TARGET, "name"]
-                ].head()
-            )
         else:
-            print("or this?")
             if os.path.exists(self.benchmark_score_file):
                 benchmark_score = load_json_dict(self.benchmark_score_file)
-            # if EPEA then better than abs benchmark
-            if VALIDATION_TARGET in ["EPEA", "EPEA_Bench"]:
-                better_scores = case_results[
-                    case_results["abs error"] <= benchmark_score["abs error"]
-                ]
-                better_scores = better_scores[
-                    better_scores[VALIDATION_TARGET] > 0
-                ]
 
-            # if EPEA_norm then higher EPEA_norm>0 when missing and surpulr better than benchmark
-            elif VALIDATION_TARGET in ["EPEA_norm", "EPEA_Bench_norm"]:
-                better_scores = case_results[
-                    case_results["alloc missing"]
-                    <= benchmark_score["alloc missing"]
-                ]
-                better_scores = better_scores[
-                    better_scores["alloc surplus"]
-                    <= benchmark_score["alloc surplus"]
-                ]
+            better_scores = case_results[case_results[VALIDATION_TARGET] > 0]
+            if len(better_scores) == 0:
+                # if EPEA then better than abs benchmark
+                if VALIDATION_TARGET in ["EPEA", "EPEA_Bench"]:
+                    better_scores = case_results[
+                        case_results["abs error"]
+                        <= benchmark_score["abs error"]
+                    ]
+                    better_scores = better_scores[
+                        better_scores[VALIDATION_TARGET] > 0
+                    ]
+
+                # if EPEA_norm then higher EPEA_norm>0 when missing and surpulr better than benchmark
+                elif VALIDATION_TARGET in ["EPEA_norm", "EPEA_Bench_norm"]:
+                    better_scores = case_results[
+                        case_results["alloc missing"]
+                        <= benchmark_score["alloc missing"]
+                    ]
+                    better_scores = better_scores[
+                        better_scores["alloc surplus"]
+                        <= benchmark_score["alloc surplus"]
+                    ]
             if len(better_scores) == 0:
                 # get the best 5%
                 top_values = case_results[VALIDATION_TARGET].quantile(0.94)
@@ -855,8 +950,6 @@ class Experiment(SpiceEyes):
                 better_scores = better_scores[
                     better_scores["alloc surplus"] > top_values_s
                 ]
-        print("is doing the wortgy")
-        print(better_scores.head())
         unique_values_list = better_scores["name"].unique().tolist()
         # just the best
         max_target = better_scores[VALIDATION_TARGET].max()
@@ -867,15 +960,26 @@ class Experiment(SpiceEyes):
         unique_values_list = rows_with_best["name"].unique().tolist()
 
         better_scores.reset_index(inplace=True, drop=True)
-        # if self.forward_epochs:
-        #     forward_cases = case_results[
-        #         case_results["name"].isin(unique_values_list)
-        #     ]
+        # if self.backward_epochs:
+        #     if self.backward_epochs!=self.epochs:
+        #         smaller_epochs = min([self.backward_epochs, self.epochs])
 
-        #     forward_cases = forward_cases[
-        #         forward_cases["epoch"] <= self.forward_epochs
-        #     ]
-        #     self.best_result = max(forward_cases[VALIDATION_TARGET])
+        #         backward_cases = case_results[case_results["epoch"] <= smaller_epochs]
+        #         self.best_result = max(backward_cases[VALIDATION_TARGET])
+        #         unique_values_list = rows_with_best["name"].unique().tolist()
+
+        #         backward_cases = backward_cases[
+        #             backward_cases["epoch"] <= smaller_epochs
+        #         ]
+        if self.forward_epochs:
+            forward_cases = case_results[
+                case_results["name"].isin(unique_values_list)
+            ]
+
+            forward_cases = forward_cases[
+                forward_cases["epoch"] <= self.forward_epochs
+            ]
+            self.best_result = max(forward_cases[VALIDATION_TARGET])
 
         print("----------------------------------------------------")
         print("Worthy models are: ", unique_values_list)
@@ -1137,7 +1241,7 @@ class Experiment(SpiceEyes):
             # TODO: make a plot with the real data and the best predictions
             # the plot is the one year, one month, one week, one day
             # maybe the best and the worse of each
-            benchmark_prediction_file = self.benchmark_score_file.replace(
+            self.benchmark_prediction_file = self.benchmark_score_file.replace(
                 ".json", "npz"
             )
 
