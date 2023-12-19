@@ -36,8 +36,13 @@ MODELS_ARCHS = {
     },
     "UNET": {"arch": "UNETArch"},
     "EncoderDecoder": {"arch": "EncoderDecoder"},
-    # "Transformer": {"arch": "Transformer"},
+    "Transformer": {"arch": "Transformer"},
+    "StackedTransformer": {
+        "arch": "Transformer",
+        "architecture_args": {"block_repetition": 2},
+    },
 }
+# TODO: why is just the name StackedCNN.json needed in the models conf
 
 
 class CaseModel:
@@ -61,6 +66,7 @@ class CaseModel:
         n_filters=16,
         model_types=".keras",
         case_to_study_name=None,
+        MODELS_ARCHS=MODELS_ARCHS,
     ):
         self.MODEL_CONF_FOLDER = MODEL_CONF_FOLDER
 
@@ -86,6 +92,8 @@ class CaseModel:
         self.case_work_folder = None
         self.freq_saves_path = None
 
+        self.MODELS_ARCHS = MODELS_ARCHS
+
         self.model_keras_file = model_keras_file
         self.case_to_study_name = case_to_study_name
 
@@ -102,6 +110,11 @@ class CaseModel:
             self.load(self.conf_file)
         self.name = name or self.name or self.get_name()
         self.set_model_conf()
+        # if not self.conf_file:
+        #     if self.CASE_MODEL_FOLDER:
+        #         self.conf_file = os.path.join(
+        #             self.CASE_MODEL_FOLDER, "halleck_case_model_conf.json"
+        #         )
 
     def get_name(self):
         name = self.arquitecture
@@ -142,7 +155,7 @@ class CaseModel:
             import forecat
 
             # Create model
-            model_conf = MODELS_ARCHS[model_name]
+            model_conf = self.MODELS_ARCHS[model_name]
             model_conf_name = model_conf["arch"]
             model_conf_arch = getattr(forecat, model_conf_name)
 
@@ -152,7 +165,8 @@ class CaseModel:
             )
             architecture_args_to_use.update({"name": self.name})
             # TODO: change the filter things in forecat now it wont be possible to experiment on different filters
-            architecture_args_to_use.pop("conv_args")
+            if "conv_args" in architecture_args_to_use:
+                architecture_args_to_use.pop("conv_args")
 
             forearch = model_conf_arch(**input_args)
             model_obj = forearch.architecture(**architecture_args_to_use)
@@ -263,6 +277,7 @@ class ModelHalleck:
         previous_halleck=None,
         best_model=None,
         conf_file=None,
+        MODELS_ARCHS=MODELS_ARCHS,
     ):
         self.MODEL_CONF_FOLDER = MODEL_CONF_FOLDER
 
@@ -283,6 +298,8 @@ class ModelHalleck:
         self.EXPERIMENT_MODEL_FOLDER = experiment_model_folder
         self.conf_file = conf_file
         self.previous_halleck = previous_halleck
+        self.MODELS_ARCHS = MODELS_ARCHS
+
         # self.name = name
         # self.work_folder = work_folder
         # self.raw_data_folder = raw_data_folder
@@ -368,10 +385,19 @@ class ModelHalleck:
                 continue
 
             if key == "models_to_experiment":
-                dict_to_save[key] = [v.name for k, v in value.items()]
+                res = []
+                for v in value.values():
+                    if getattr(v, "conf_file", None):
+                        res.append(v.conf_file)
+                    else:
+                        res.append(v.name)
+
+                dict_to_save[key] = res
 
             if key in ["previous_halleck"]:
                 dict_to_save[key] = value.conf_file
+            if key in ["best_models"]:
+                dict_to_save[key] = [f.conf_file for f in value]
 
             if not is_jsonable(dict_to_save[key]):
                 dict_to_save[key] = (
@@ -395,13 +421,26 @@ class ModelHalleck:
             if value is None:
                 continue
             elif key == "models_to_experiment":
-                # Load a Case
-                dict_to_restore[key] = {
-                    k: CaseModel(conf_file=k) for k in value
-                }
+                res = {}
+                for k in value:
+                    if os.path.exists(k):
+                        c = CaseModel(conf_file=k)
+                        res.update({c.name: c})
+                    else:
+                        res.update({k: CaseModel(name=k)})
+                dict_to_restore[key] = res
+
             elif key in ["previous_halleck"]:
                 dict_to_restore[key] = ModelHalleck(conf_file=value)
-
+            if key in ["best_models"]:
+                res = []
+                for k in value:
+                    if os.path.exists(k):
+                        c = CaseModel(conf_file=k)
+                        res.append(c)
+                    else:
+                        res.append(CaseModel(name=k))
+                dict_to_restore[key] = res
         # if "previous_cases" in dict_to_restore:
         #     if dict_to_restore["previous_cases"]:
         #         previous_cases = []
@@ -469,20 +508,29 @@ class ModelHalleck:
         refactor_combinations = {}
         for var in list_vars:
             self_var = getattr(self, var)
-            # If its none we want the next step to use default values
-            if self_var is None:
-                continue
-            if isinstance(self_var, list):
-                refactor_combinations[var] = self_var
-                what_is_on_study.add(var)
-                experiment_variables.add(self_var)
+            var_to_use = None
 
+            # If its none we want the next step to use default values
+            if isinstance(self_var, list):
+                var_to_use = self_var
+                what_is_on_study.add(var)
+                # experiment_variables.add(self_var)
             else:
-                var_to_use = None
                 if self.previous_halleck:
                     var_to_use = getattr(self.previous_halleck, var)
+                    if isinstance(var_to_use, list) or (var_to_use is None):
+                        var_to_use = [
+                            getattr(f, var)
+                            for f in self.previous_halleck.best_models
+                        ]
                 var_to_use = var_to_use or self_var
-                refactor_combinations[var] = [var_to_use]
+
+            if var_to_use is None:
+                continue
+            setattr(self, var, var_to_use)
+            if not isinstance(var_to_use, list):
+                var_to_use = [var_to_use]
+            refactor_combinations[var] = var_to_use
 
         # Generate all combinations of values
         combinations = list(itertools.product(*refactor_combinations.values()))
@@ -512,6 +560,8 @@ class ModelHalleck:
                     arquitecture=arch,
                     **model_args,
                     case_to_study_name=case_to_study_name,
+                    MODELS_ARCHS=self.MODELS_ARCHS,
+                    # case_model_folder=os.path.dirname(self.conf_file),
                 )
                 models_to_experiment[casemodelobj.name] = casemodelobj
         self.models_to_experiment = models_to_experiment
@@ -520,7 +570,6 @@ class ModelHalleck:
     def setup(self, conf_file=None):
         self.conf_file = self.conf_file or conf_file
         # if there is a conf file read if
-
         if os.path.exists(self.conf_file):
             self.load(path=self.conf_file)
         else:
@@ -529,7 +578,8 @@ class ModelHalleck:
     def set_best_case_model(self, best_models):
         if not isinstance(best_models, list):
             best_models = [best_models]
-        self.best_archs = best_models
+        self.best_archs = [f.model_case_obj.arquitecture for f in best_models]
+        self.best_models = [f.model_case_obj for f in best_models]
         self.save(self.conf_file)
 
     # @staticmethod

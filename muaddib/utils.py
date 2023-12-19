@@ -69,6 +69,9 @@ def startup(env_file=".env"):
     REDO_VALIDATION = os.getenv("REDO_VALIDATION", False)
     os.environ["REDO_VALIDATION"] = REDO_VALIDATION
 
+    MODE_FOR_BEST = os.getenv("MODE_FOR_BEST", None)
+    os.environ["MODE_FOR_BEST"] = MODE_FOR_BEST
+
     # One target var - Upward
     # List of target variables, multiples variable - Upward;Downward
     # List of experiment with diferent targest - Upward|Downward
