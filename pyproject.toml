@@ -1,0 +1,70 @@
+[tool.poetry]
+name = "muaddib"
+version = "0.0.1"
+description = "Beyond Mentalic - A Machine Learning Framework"
+authors = ["Alquimodelia, João Santos <jotaflame@gmail.com>"]
+readme = "README.md"
+license = "LICENSE"
+homepage = "https://github.com/alquimodelia/MuadDib"
+repository = "https://github.com/alquimodelia/MuadDib"
+documentation = "https://alquimodelia.github.io/MuadDib/"
+keywords = ['machine learning', ' framework', ' python', ' data science']
+
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/alquimodelia/MuadDib/issues"
+"Source Code" = "https://github.com/alquimodelia/MuadDib"
+
+
+
+
+[tool.poetry.dependencies]
+python = "^3.9"
+cookiecutter = "*"
+
+[tool.poetry.group.docs]
+optional = true
+
+[tool.poetry.group.docs.dependencies]
+sphinx = "*"
+
+[tool.poetry.group.dev]
+optional = true
+
+[tool.poetry.group.dev.dependencies]
+poetry = "*"
+ruff = "*"
+black = "*"
+isort = "*"
+
+[tool.poetry.group.tests]
+optional = true
+
+[tool.poetry.group.tests.dependencies]
+pytest = "*"
+
+
+[build-system]
+requires = ["setuptools","poetry"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 79
+
+[tool.ruff]
+line-length = 79
+select = ["E", "F", "B", "Q"]
+show-fixes = true
+ignore = ["E501"]
+
+[tool.isort]
+multi_line_output = 3
+include_trailing_comma = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests",]
+pythonpath = ["."]
+
+
+[tool.poetry.scripts]
+"muaddib" = "muaddib.__main__:main"
+
