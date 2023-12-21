@@ -547,8 +547,6 @@ class ModelHalleck:
             if arch is None:
                 continue
             if "archs" in what_is_on_study:
-                print("what_is_on_study", what_is_on_study)
-                print(arch)
                 case_to_study_name = arch
             for model_args in result_combinations:
                 for k, n in model_args.items():
