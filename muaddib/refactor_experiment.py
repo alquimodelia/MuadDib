@@ -50,6 +50,7 @@ class SpiceEyes:
         model_types=".keras",
         final_experiment=False,
         setup_args=None,
+        weights=False,
     ):
         self.work_folder = work_folder
         self.name = name
@@ -102,6 +103,7 @@ class SpiceEyes:
             self.best_result = None
             self.final_experiment = final_experiment
             setup_args = setup_args or {}
+            self.weights = weights
             self.setup(**setup_args)
 
     def save(self, path=None):
@@ -416,6 +418,7 @@ class Case(SpiceEyes):
             fit_args=self.fit_args,
             compile_args=self.compile_args,
             model_name=self.name,
+            weights=self.weights,
         )
         self.complete = True
 
@@ -761,6 +764,38 @@ class Experiment(SpiceEyes):
 
                 casemodelobj_to_use = copy.deepcopy(casemodelobj)
                 case_obj = None
+                new_case_obj = None
+                # TODO: Redo this conf of weigths cases, it seems that it will only work properly if exp1 not wieth and exp2 with
+                if self.weights:
+                    new_case_name = case_name + "_weights"
+                    previous_weigths = False
+                    if self.previous_experiment:
+                        previous_weigths = self.previous_experiment.weights
+                        if (
+                            new_case_name
+                            in self.previous_experiment.study_cases
+                        ):
+                            new_case_obj = (
+                                self.previous_experiment.study_cases[
+                                    new_case_name
+                                ]
+                            )
+                    diference_wights_now_and_before = (
+                        self.weights != previous_weigths
+                    )
+                    if new_case_obj is None:
+                        if diference_wights_now_and_before:
+                            new_case_obj = Case(
+                                model_case_obj=casemodelobj_to_use,
+                                name=new_case_name,
+                                on_study_name=on_study_name_to_use,
+                                weights=True,
+                                **case_args,
+                                **commun_case_args,
+                            )
+                    if new_case_obj:
+                        self.conf.append(new_case_obj)
+                        self.study_cases[new_case_obj.name] = new_case_obj
                 if self.previous_experiment:
                     if case_name in self.previous_experiment.study_cases:
                         case_obj = self.previous_experiment.study_cases[
