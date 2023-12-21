@@ -79,6 +79,7 @@ class DatasetManager:
             self.process_data()
 
         self.dataframe = self.read_data()
+        self.y_mean = self.dataframe[self.columns_Y].mean().item()
         self.n_features_train = len(
             self.dataframe.drop(self.datetime_col, axis=1).columns
         )

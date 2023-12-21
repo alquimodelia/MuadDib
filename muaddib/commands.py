@@ -194,7 +194,7 @@ def train_on_call(args):
             extra_args["run_anyway"] = True
         case_obj.train_model(**extra_args)
     case_obj.validate_model()
-    # exp_obj.validate_experiment()
+    exp_obj.validate_experiment()
     # exp_obj.visualize_report()
 
 

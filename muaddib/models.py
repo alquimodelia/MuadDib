@@ -543,7 +543,12 @@ class ModelHalleck:
         models_to_experiment = {}
         case_to_study_name = ""
         for arch in archs_to_use:
+            # BUG: The need for this None continue implies a problem upstream
+            if arch is None:
+                continue
             if "archs" in what_is_on_study:
+                print("what_is_on_study", what_is_on_study)
+                print(arch)
                 case_to_study_name = arch
             for model_args in result_combinations:
                 for k, n in model_args.items():
