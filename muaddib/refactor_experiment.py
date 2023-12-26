@@ -653,7 +653,18 @@ class Experiment(SpiceEyes):
             self.halleck_obj = ModelHalleck(**halleck_init_args)
         self.halleck_obj.setup(conf_file=halleck_conf_file)
 
+    def get_case_obj(self, TARGET_VARIABLE_CASE_DICT, case_name, **kwargs):
+        if case_name in TARGET_VARIABLE_CASE_DICT:
+            case_obj = Case(conf_file=TARGET_VARIABLE_CASE_DICT[case_name])
+        else:
+            case_obj = Case(**kwargs)
+        return case_obj
+
     def experiment_configuration(self):
+        TARGET_VARIABLE_CASE_DICT_PATH = os.path.join(os.path.dirname(self.obj_work_folder), "case_list_conf.json")
+        TARGET_VARIABLE_CASE_DICT={}
+        if os.path.exists(TARGET_VARIABLE_CASE_DICT_PATH):
+            TARGET_VARIABLE_CASE_DICT = load_json_dict(TARGET_VARIABLE_CASE_DICT_PATH)
         # TODO: hacky way to just get MW or not
         if self.previous_experiment:
             if isinstance(self.loss, list):
@@ -794,14 +805,21 @@ class Experiment(SpiceEyes):
                     )
                     if new_case_obj is None:
                         if diference_wights_now_and_before:
-                            new_case_obj = Case(
-                                model_case_obj=casemodelobj_to_use,
+                            new_case_obj = self.get_case_obj(TARGET_VARIABLE_CASE_DICT, new_case_name, model_case_obj=casemodelobj_to_use,
                                 name=new_case_name,
                                 on_study_name=on_study_name_to_use,
                                 weights=True,
                                 **case_args,
                                 **commun_case_args,
-                            )
+                                )
+                            # new_case_obj = Case(
+                            #     model_case_obj=casemodelobj_to_use,
+                            #     name=new_case_name,
+                            #     on_study_name=on_study_name_to_use,
+                            #     weights=True,
+                            #     **case_args,
+                            #     **commun_case_args,
+                            # )
                     if new_case_obj:
                         self.conf.append(new_case_obj)
                         self.study_cases[new_case_obj.name] = new_case_obj
@@ -811,16 +829,23 @@ class Experiment(SpiceEyes):
                             case_name
                         ]
                 if case_obj is None:
-                    case_obj = Case(
-                        model_case_obj=casemodelobj_to_use,
+                    case_obj = self.get_case_obj(TARGET_VARIABLE_CASE_DICT, case_name,model_case_obj=casemodelobj_to_use,
                         name=case_name,
                         on_study_name=on_study_name_to_use,
                         **case_args,
-                        **commun_case_args,
-                    )
+                        **commun_case_args,)
+                    # case_obj = Case(
+                    #     model_case_obj=casemodelobj_to_use,
+                    #     name=case_name,
+                    #     on_study_name=on_study_name_to_use,
+                    #     **case_args,
+                    #     **commun_case_args,
+                    # )
                 self.conf.append(case_obj)
                 self.study_cases[case_obj.name] = case_obj
-
+                if case_obj.name not in TARGET_VARIABLE_CASE_DICT:
+                    TARGET_VARIABLE_CASE_DICT[case_obj.name]=case_obj.conf_file
+        write_dict_to_file(TARGET_VARIABLE_CASE_DICT,TARGET_VARIABLE_CASE_DICT_PATH)
         return self.conf
 
     def validate_experiment(self):
@@ -933,7 +958,7 @@ class Experiment(SpiceEyes):
             from scipy.optimize import curve_fit
             case_results = case_results.drop_duplicates(["name", "epoch"])
             sorted_cases = case_results.sort_values(["name", "epoch"])
-            sorted_cases.loc[sorted_cases[VALIDATION_TARGET]<-100, VALIDATION_TARGET]=-100
+            # sorted_cases.loc[sorted_cases[VALIDATION_TARGET]<-100, VALIDATION_TARGET]=-100
             grouped = sorted_cases.groupby("name")
             
 
