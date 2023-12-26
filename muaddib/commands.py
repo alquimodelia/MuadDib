@@ -194,7 +194,7 @@ def train_on_call(args):
             extra_args["run_anyway"] = True
         case_obj.train_model(**extra_args)
     case_obj.validate_model()
-    exp_obj.validate_experiment()
+    # exp_obj.validate_experiment()
     # exp_obj.visualize_report()
 
 
@@ -274,6 +274,8 @@ def experiment(args):
             # case_obj.train_model()
             # case_obj.validate_model()
             run_training = not case_obj.complete or exp.final_experiment
+            print("RUUU", run_training)
+            print()
             # if case_obj.epochs>exp.epochs:
             #     run_training=False
             if run_training:
