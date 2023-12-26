@@ -60,11 +60,16 @@ def get_target_dict(target_variable):
 
 
 def get_mirror_weight_loss(loss_name):
-    loss_used = loss_name.replace("mirror_weights_", "")
-    from alquitable.advanced_losses import MirrorWeights
+    loss_name2 = loss_name.replace("reversed_", "")
+    loss_used = loss_name2.replace("mirror_weights_", "")
+    loss_used = loss_used.replace("mirror_loss_", "")
+    loss_used = loss_used.replace("mirror_percentage_", "")
+    loss_used = loss_used.replace("mirror_normalized_", "")
+
+    from alquitable.advanced_losses import MirrorWeights, MirrorLoss,MirrorPercentage,MirrorNormalized
     from alquitable.losses import ALL_LOSSES_DICT
 
-    if "mirror_weights" in loss_name:
+    if "mirror" in loss_name:
         weight_on_surplus = True
         if "reversed" in loss_name:
             weight_on_surplus = False
@@ -86,10 +91,23 @@ def get_mirror_weight_loss(loss_name):
         print(loss_used)
         print("------------")
         return
-    if "mirror_weights" in loss_name:
-        loss_used_fn = MirrorWeights(
-            loss_to_use=loss_used_fn(), weight_on_surplus=weight_on_surplus
-        )
+    if "mirror" in loss_name:
+        if "weights" in loss_name:
+            loss_used_fn = MirrorWeights(
+                loss_to_use=loss_used_fn(), weight_on_surplus=weight_on_surplus
+            )
+        if "mirror_loss" in loss_name:
+            loss_used_fn = MirrorLoss(
+                loss_to_use=loss_used_fn(), weight_on_surplus=weight_on_surplus
+            )
+        if "mirror_percentage" in loss_name:
+            loss_used_fn = MirrorPercentage(
+                loss_to_use=loss_used_fn(), weight_on_surplus=weight_on_surplus
+            )
+        if "mirror_normalized" in loss_name:
+            loss_used_fn = MirrorNormalized(
+                loss_to_use=loss_used_fn(), weight_on_surplus=weight_on_surplus
+            )
     else:
         loss_used_fn = loss_used_fn()
 
