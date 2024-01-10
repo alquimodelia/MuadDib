@@ -2,7 +2,7 @@ import copy
 import math
 import os
 
-import keras_core
+import keras
 import numpy as np
 import pandas as pd
 
@@ -142,7 +142,7 @@ class DatasetManager:
 
         return validation_benchmark
 
-    def keras_sequence(self, **kwargs) -> keras_core.utils.Sequence:
+    def keras_sequence(self, **kwargs) -> keras.utils.Sequence:
         return self.keras_sequence_cls(**kwargs)
 
     def sequence_ravel(self, dataframe_to_use, frac=1, **kwargs):

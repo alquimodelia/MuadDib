@@ -25,22 +25,138 @@ MODELS_ARCHS = {
         "arch": "DenseArch",
         "architecture_args": {"block_repetition": 2},
     },
-    "VanillaCNN": {
-        "arch": "CNNArch",
-    },
-    "VanillaDense": {"arch": "DenseArch"},
-    "VanillaLSTM": {"arch": "LSTMArch"},
-    "StackedLSTMA": {
-        "arch": "LSTMArch",
-        "architecture_args": {"block_repetition": 2},
-    },
-    "UNET": {"arch": "UNETArch"},
-    "EncoderDecoder": {"arch": "EncoderDecoder"},
+    # "VanillaCNN": {
+    #     "arch": "CNNArch",
+    # },
+    # "VanillaDense": {"arch": "DenseArch"},
+    # "VanillaLSTM": {"arch": "LSTMArch"},
+    # "StackedLSTMA": {
+    #     "arch": "LSTMArch",
+    #     "architecture_args": {"block_repetition": 2},
+    # },
+    # "UNET": {"arch": "UNETArch"},
+    # "EncoderDecoder": {"arch": "EncoderDecoder"},
     "Transformer": {"arch": "Transformer"},
     "StackedTransformer": {
         "arch": "Transformer",
         "architecture_args": {"block_repetition": 2},
     },
+    # "Stacked6Transformer": {
+    #     "arch": "Transformer",
+    #     "architecture_args": {"block_repetition": 6},
+    # },
+    "StackedCNNTime2Vec": {
+        "arch": "CNNArch",
+        "architecture_args": {"block_repetition": 2,"get_input_layer_args":{"time2vec_kernel_size":1}},
+    },
+    "StackedCNNTime2Vec8": {
+        "arch": "CNNArch",
+        "architecture_args": {"block_repetition": 2,"get_input_layer_args":{"time2vec_kernel_size":8}},
+    },
+    "StackedCNNTime2VecDist": {
+        "arch": "CNNArch",
+        "architecture_args": {"block_repetition": 2,"get_input_layer_args":{"time2vec_kernel_size":[1,8]}},
+    },
+    # "StackedDenseTime2Vec": {
+    #     "arch": "DenseArch",
+    #     "architecture_args": {"block_repetition": 2,"get_input_layer_args":{"time2vec_kernel_size":1}},
+    # },
+    # "VanillaCNNTime2Vec": {
+    #     "arch": "CNNArch",
+    #     "architecture_args": {"get_input_layer_args":{"time2vec_kernel_size":1}},
+
+    # },
+    # "VanillaDenseTime2Vec": {"arch": "DenseArch",
+    #         "architecture_args": {"get_input_layer_args":{"time2vec_kernel_size":1}},
+
+    # },
+    # "VanillaLSTMTime2Vec": {"arch": "LSTMArch",
+    #         "architecture_args": {"get_input_layer_args":{"time2vec_kernel_size":1}},
+    # },
+    # "StackedLSTMATime2Vec": {
+    #     "arch": "LSTMArch",
+    #     "architecture_args": {"block_repetition": 2,"get_input_layer_args":{"time2vec_kernel_size":1}},
+    # },
+    # "EncoderDecoderTime2Vec": {"arch": "EncoderDecoder"},
+    # "TransformerTime2Vec": {"arch": "Transformer"},
+    # "StackedTransformerTime2Vec": {
+    #     "arch": "Transformer",
+    #     "architecture_args": {"block_repetition": 2,"get_input_layer_args":{"time2vec_kernel_size":1}},
+    # },
+    # "Stacked6TransformerTime2Vec": {
+    #     "arch": "Transformer",
+    #     "architecture_args": {"block_repetition": 6,"get_input_layer_args":{"time2vec_kernel_size":1}},
+    # },
+    # "UNETTime2Vec": {"arch": "UNETArch",
+    #             "architecture_args": {"get_input_layer_args":{"time2vec_kernel_size":1}},
+
+    # },
+
+    # # # # "StackedDenseTime2Vec8": {
+    # # # #     "arch": "DenseArch",
+    # # # #     "architecture_args": {"block_repetition": 2,"get_input_layer_args":{"time2vec_kernel_size":8}},
+    # # # # },
+    # # # # "VanillaCNNTime2Vec8": {
+    # # # #     "arch": "CNNArch",
+    # # # #     "architecture_args": {"get_input_layer_args":{"time2vec_kernel_size":8}},
+
+    # # # # },
+    # # # # "VanillaDenseTime2Vec8": {"arch": "DenseArch",
+    # # # #         "architecture_args": {"get_input_layer_args":{"time2vec_kernel_size":8}},
+
+    # # # # },
+    # # # # "VanillaLSTMTime2Vec8": {"arch": "LSTMArch",
+    # # # #         "architecture_args": {"get_input_layer_args":{"time2vec_kernel_size":8}},
+    # # # # },
+    # # # # "StackedLSTMATime2Vec8": {
+    # # # #     "arch": "LSTMArch",
+    # # # #     "architecture_args": {"block_repetition": 2,"get_input_layer_args":{"time2vec_kernel_size":8}},
+    # # # # },
+    # # # # "EncoderDecoderTime2Vec8": {"arch": "EncoderDecoder"},
+    # # # # "TransformerTime2Vec8": {"arch": "Transformer"},
+    # "StackedTransformerTime2Vec8": {
+    #     "arch": "Transformer",
+    #     "architecture_args": {"block_repetition": 2,"get_input_layer_args":{"time2vec_kernel_size":8}},
+    # },
+    # "Stacked6TransformerTime2Vec8": {
+    #     "arch": "Transformer",
+    #     "architecture_args": {"block_repetition": 6,"get_input_layer_args":{"time2vec_kernel_size":8}},
+    # },
+
+    # "StackedCNNTime2VecDist": {
+    #     "arch": "CNNArch",
+    #     "architecture_args": {"block_repetition": 2,"get_input_layer_args":{"time2vec_kernel_size":24,"timedist":True}},
+    # },
+    # "StackedDenseTime2VecDist": {
+    #     "arch": "DenseArch",
+    #     "architecture_args": {"block_repetition": 2,"get_input_layer_args":{"time2vec_kernel_size":24,"timedist":True}},
+    # },
+    # "VanillaCNNTime2VecDist": {
+    #     "arch": "CNNArch",
+    #     "architecture_args": {"get_input_layer_args":{"time2vec_kernel_size":24,"timedist":True}},
+
+    # },
+    # "VanillaDenseTime2VecDist": {"arch": "DenseArch",
+    #         "architecture_args": {"get_input_layer_args":{"time2vec_kernel_size":24,"timedist":True}},
+
+    # },
+    # "VanillaLSTMTime2VecDist": {"arch": "LSTMArch",
+    #         "architecture_args": {"get_input_layer_args":{"time2vec_kernel_size":24,"timedist":True}},
+    # },
+    # "StackedLSTMATime2VecDist": {
+    #     "arch": "LSTMArch",
+    #     "architecture_args": {"block_repetition": 2,"get_input_layer_args":{"time2vec_kernel_size":24,"timedist":True}},
+    # },
+    # "EncoderDecoderTime2VecDist": {"arch": "EncoderDecoder"},
+    # "TransformerTime2VecDist": {"arch": "Transformer"},
+    # "StackedTransformerTime2VecDist": {
+    #     "arch": "Transformer",
+    #     "architecture_args": {"block_repetition": 2,"get_input_layer_args":{"time2vec_kernel_size":24,"timedist":True}},
+    # },
+    # "Stacked6TransformerTime2VecDist": {
+    #     "arch": "Transformer",
+    #     "architecture_args": {"block_repetition": 6,"get_input_layer_args":{"time2vec_kernel_size":24,"timedist":True}},
+    # },
 }
 # TODO: why is just the name StackedCNN.json needed in the models conf
 
@@ -170,6 +286,9 @@ class CaseModel:
 
             forearch = model_conf_arch(**input_args)
             model_obj = forearch.architecture(**architecture_args_to_use)
+            # import numpy as np
+            # model_obj.predict(np.ones((1,*model_obj.input_shape[1:])))
+
             model_json = model_obj.to_json()
             write_dict_to_file(model_json, self.model_conf_file)
 
@@ -618,7 +737,7 @@ class ModelHalleck:
     #             with open(model_def_path, "r") as json_file:
     #                 loaded_model_json = json_file.read()
 
-    #             models_dict[model_name] = keras_core.models.model_from_json(
+    #             models_dict[model_name] = keras.models.model_from_json(
     #                 loaded_model_json
     #             )
 
@@ -702,7 +821,7 @@ class ModelHalleck:
     #                 with open(model_def_path, "r") as json_file:
     #                     loaded_model_json = json_file.read()
 
-    #                 models_dict[model_name] = keras_core.models.model_from_json(
+    #                 models_dict[model_name] = keras.models.model_from_json(
     #                     loaded_model_json
     #                 )
     #     return models_dict
