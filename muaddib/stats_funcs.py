@@ -1,6 +1,7 @@
-import numpy as np
-from scipy.optimize import curve_fit
 from typing import Iterable
+
+import numpy as np
+
 
 def get_mean_from_rolling(s, win):
     roll_mean = s.dropna().rolling(win).mean().dropna()

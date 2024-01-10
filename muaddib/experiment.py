@@ -1,5 +1,4 @@
 # ShaiHulud
-import copy
 import glob
 import importlib
 import inspect
@@ -9,7 +8,7 @@ import os
 
 import alquitable
 import numpy as np
-from keras_core.losses import MeanSquaredError
+from keras.losses import MeanSquaredError
 
 from muaddib.shaihulud_utils import (
     get_target_dict,
@@ -65,7 +64,7 @@ def get_mirror_weight_loss(loss_name):
         loss_used = "".join(words)
     loss_used_fn = ALL_LOSSES_DICT.get(loss_used, None)
     if loss_used_fn is None:
-        from keras_core.src.losses import ALL_OBJECTS_DICT
+        from keras.src.losses import ALL_OBJECTS_DICT
 
         loss_used_fn = ALL_OBJECTS_DICT.get(loss_used, None)
     if loss_used_fn is None:
@@ -562,7 +561,7 @@ class Case(SpiceEyes):
 
             self.set_mlflow()
             run = mlflow.start_run(run_name=self.name)
-            mlflow_callback = mlflow.keras_core.MLflowCallback(run)
+            mlflow_callback = mlflow.keras.MLflowCallback(run)
             if mlflow_callback not in self.fit_args["callbacks"]:
                 self.fit_args["callbacks"].append(mlflow_callback)
         print("-----------------------------------------------------------")
