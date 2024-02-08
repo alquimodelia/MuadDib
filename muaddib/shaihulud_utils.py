@@ -1,6 +1,30 @@
+import glob
 import json
+import os
 
 import keras
+
+
+def list_folders(directory_path):
+    return [entry for entry in os.listdir(directory_path) if os.path.isdir(os.path.join(directory_path, entry))]
+
+
+def check_trained_epochs(freq_saves_path, model_types=".keras"):
+    # Checks how many epochs were trained
+    list_query = f"{freq_saves_path}/**{model_types}"
+    list_freq_saves = glob.glob(list_query)
+    last_epoch = 0
+    last_epoch_path = None
+    if len(list_freq_saves) > 0:
+        epocs_done = [
+            int(os.path.basename(f).replace(model_types, ""))
+            for f in list_freq_saves
+        ]
+        last_epoch = max(epocs_done)
+        last_epoch_path = os.path.join(
+            f"{freq_saves_path}", f"{last_epoch}{model_types}"
+        )
+    return last_epoch, last_epoch_path
 
 
 def flatten_extend(lst):
@@ -34,7 +58,7 @@ def load_json_dict(path):
 
 def write_dict_to_file(dict_to_save, path):
     with open(path, "w") as f:
-        json.dump(dict_to_save, f)
+        json.dump(dict_to_save, f, indent=4, sort_keys=True)
     return
 
 
@@ -189,3 +213,19 @@ def get_mirror_weight_loss(loss_name):
         loss_used_fn = loss_used_fn()
 
     return loss_used_fn
+
+import itertools
+
+
+def expand_all_alternatives(parameters_to_list):
+    for key in parameters_to_list.keys():
+        if not isinstance(parameters_to_list[key], list):
+            parameters_to_list[key]=[parameters_to_list[key]]
+
+    alternatives=[]
+    for alternative in itertools.product(*parameters_to_list.values()):
+        alternative_dict = {}
+        for i, key in enumerate(parameters_to_list.keys()):
+            alternative_dict[key]=alternative[i]
+        alternatives.append(alternative_dict)
+    return alternatives
