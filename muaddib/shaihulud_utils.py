@@ -217,9 +217,34 @@ def get_mirror_weight_loss(loss_name):
 import itertools
 
 
+class AdvanceLossHandler:
+    def __init__(self, losses_to_use):
+        self.losses_to_use = losses_to_use
+
+    def set_previous_loss(self, loss):
+        self.loss = loss
+
+
+    def get_advance_loss(self):
+        loss =self.loss
+        module_name = loss.__module__
+        advance_loss = loss.__class__.__name__.split(".")[-1]
+        module = importlib.import_module(module_name)
+        loss_func = getattr(module, advance_loss)      
+
+        if "alquitable.advanced_losses" in module_name:
+            loss_args = loss.get_config()
+            loss_args.pop("loss_to_use")
+            loss_args.pop("name")
+            losses_to_use = [loss_func(losse_to_use=f,**loss_args) for f in losses_to_use]
+        return losses_to_use
+
+    def __iter__(self):
+        return iter(self.get_advance_loss())
+
 def expand_all_alternatives(parameters_to_list):
     for key in parameters_to_list.keys():
-        if not isinstance(parameters_to_list[key], list):
+        if not isinstance(parameters_to_list[key], (list, AdvanceLossHandler)):
             parameters_to_list[key]=[parameters_to_list[key]]
 
     alternatives=[]

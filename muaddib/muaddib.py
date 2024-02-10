@@ -12,6 +12,7 @@ import tinydb
 from keras.losses import MeanSquaredError
 
 from muaddib.shaihulud_utils import (
+    AdvanceLossHandler,
     check_trained_epochs,
     expand_all_alternatives,
     list_folders,
@@ -291,6 +292,8 @@ class ExperimentHandler(ShaiHulud):
     def obj_setup(self, model_handler_args=None, previous_experiment=None):
         model_handler_args = self.obj_setup_args.get("model_handler_args", model_handler_args)
         previous_experiment = self.obj_setup_args.get("previous_experiment", previous_experiment)
+        if isinstance(self.loss, AdvanceLossHandler):
+            self.loss.set_previous_loss(previous_experiment.best_exp["loss"])
         delattr(self, "obj_setup_args")
 
 
@@ -371,14 +374,23 @@ class ExperimentHandler(ShaiHulud):
             )
 
     def validate_experiment(self):
-        exp_results = pd.DataFrame()
+        exp_results_path = os.path.join(self.work_folder, "experiment_score.json")
+        if os.path.exists(exp_results_path):
+            exp_results = pd.read_json(load_json_dict(exp_results_path))
+        else:
+            exp_results = pd.DataFrame()
         # TODO: make a full exp socre file and only valdiate if needed
         for exp in self.experiments.keys():
-            exp_score = self.model_handler.validate_model(
-                exp, self.validation_fn, self.data_manager
-            )
-            exp_results = pd.concat([exp_results, exp_score])
-        return exp_results.reset_index(drop=True)
+            saved_exp_score = exp_results[exp_results.name==exp]
+            if len(saved_exp_score)<self.epochs:
+                exp_score = self.model_handler.validate_model(
+                    exp, self.validation_fn, self.data_manager, old_score=saved_exp_score,
+                )
+                exp_results = pd.concat([exp_results, exp_score])
+        exp_results = exp_results.drop_duplicates(["name","epoch"])    
+        exp_results =  exp_results.reset_index(drop=True)
+        write_dict_to_file(exp_results.to_json(), exp_results_path)
+        return exp_results
 
     def validate_results(
         self,
@@ -595,27 +607,28 @@ class ModelHandler(ShaiHulud):
         model_case_name,
         validation_fn,
         datamanager,
+        old_score=None,
         model_types=".keras",
         **kwargs,
     ):
         trained_folder = os.path.join(
             self.work_folder, model_case_name, "freq_saves"
         )
-        model_scores = []
-        model_scores = pd.DataFrame()
+        model_scores = old_score or pd.DataFrame()
         for trained_models in glob.glob(f"{trained_folder}/**{model_types}"):
-            predict_score = validation_fn(
-                trained_models,
-                datamanager,
-                model_name=model_case_name,
-            )
             epoca = int(
                 os.path.basename(trained_models).replace(f"{model_types}", "")
             )
-            predict_score["epoch"] = epoca
-            model_scores = pd.concat(
-                [model_scores, pd.DataFrame(predict_score)]
-            )
+            if epoca not  in model_scores["epoch"].values:
+                predict_score = validation_fn(
+                    trained_models,
+                    datamanager,
+                    model_name=model_case_name,
+                )
+                predict_score["epoch"] = epoca
+                model_scores = pd.concat(
+                    [model_scores, pd.DataFrame(predict_score)]
+                )
         return model_scores.reset_index(drop=True)
 
 
@@ -643,6 +656,33 @@ class DataHandler(ShaiHulud):
         score_path=None,
         **kwargs,
     ):
+        """
+        Initialize the DataHandler object.
+
+        Args:
+            target_variable: The target variable.
+            dataset_file_name: The name of the dataset file. Defaults to "dados_2014-2022.csv".
+            name: The name of the DataHandler object.
+            project_manager: The project manager.
+
+        Keyword Args:
+            X_timeseries: The time series for X data. Defaults to 168.
+            Y_timeseries: The time series for Y data. Defaults to 24.
+            columns_Y: The list of columns for Y data.
+            datetime_col: The name of the datetime column. Defaults to "datetime".
+            keras_backend: The backend for Keras. Defaults to "torch".
+            process_fn: The process function.
+            read_fn: The read function.
+            validation_fn: The validation function.
+            process_benchmark_fn: The process benchmark function.
+            keras_sequence_cls: The Keras sequence class.
+            sequence_args: The sequence arguments.
+            score_path: The path for the benchmark score.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            None
+        """
         self.target_variable = target_variable
         columns_Y = columns_Y or [target_variable]
         self.project_manager = project_manager

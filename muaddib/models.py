@@ -25,26 +25,26 @@ MODELS_ARCHS = {
         "arch": "DenseArch",
         "architecture_args": {"block_repetition": 2},
     },
-    # "VanillaCNN": {
-    #     "arch": "CNNArch",
-    # },
-    # "VanillaDense": {"arch": "DenseArch"},
-    # "VanillaLSTM": {"arch": "LSTMArch"},
-    # "StackedLSTMA": {
-    #     "arch": "LSTMArch",
-    #     "architecture_args": {"block_repetition": 2},
-    # },
-    # "UNET": {"arch": "UNETArch"},
-    # "EncoderDecoder": {"arch": "EncoderDecoder"},
+    "VanillaCNN": {
+        "arch": "CNNArch",
+    },
+    "VanillaDense": {"arch": "DenseArch"},
+    "VanillaLSTM": {"arch": "LSTMArch"},
+    "StackedLSTMA": {
+        "arch": "LSTMArch",
+        "architecture_args": {"block_repetition": 2},
+    },
+    "UNET": {"arch": "UNETArch"},
+    "EncoderDecoder": {"arch": "EncoderDecoder"},
     "Transformer": {"arch": "Transformer"},
     "StackedTransformer": {
         "arch": "Transformer",
         "architecture_args": {"block_repetition": 2},
     },
-    # "Stacked6Transformer": {
-    #     "arch": "Transformer",
-    #     "architecture_args": {"block_repetition": 6},
-    # },
+    "Stacked6Transformer": {
+        "arch": "Transformer",
+        "architecture_args": {"block_repetition": 6},
+    },
     "StackedCNNTime2Vec": {
         "arch": "CNNArch",
         "architecture_args": {"block_repetition": 2,"get_input_layer_args":{"time2vec_kernel_size":1}},

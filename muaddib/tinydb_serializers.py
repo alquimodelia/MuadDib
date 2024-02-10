@@ -9,6 +9,8 @@ from keras.callbacks import Callback
 from keras.losses import Loss
 from tinydb_serialization import SerializationMiddleware, Serializer
 
+from muaddib.shaihulud_utils import AdvanceLossHandler
+
 
 class PosixPathSerializer(Serializer):
     OBJ_CLASS = pathlib.Path
@@ -76,6 +78,26 @@ class FunctionSerializer(Serializer):
         module = importlib.import_module(module_name)
         return getattr(module, function_name)
  
+class AdvanceLossHandlerSerializer(Serializer):
+    OBJ_CLASS = AdvanceLossHandler
+
+    def encode(self, obj):
+        # Assuming `previous_experiment` can be serialized itself
+        return str({
+            "losses_to_use":[KerasLossSerializer().encode(f) for f in obj.losses_to_use]
+        })
+
+    def decode(self, s):
+        if not isinstance(s, dict):
+            s = ast.literal_eval(s)
+        losses_to_use = [KerasLossSerializer().decode(f) for f in s["losses_to_use"]]
+        return AdvanceLossHandler(losses_to_use=losses_to_use)
+
+
+
+
+
+
 def create_class_serializer(cls):
     class class_serializer(Serializer):
         OBJ_CLASS = cls
@@ -105,3 +127,4 @@ serialization.register_serializer(KerasLossSerializer(), "KerasLoss")
 serialization.register_serializer(KerasCallbackSerializer(), "KerasCallback")
 serialization.register_serializer(FunctionSerializer(), "Function")
 serialization.register_serializer(PandasSerializer(), "PandasDataFrame")
+serialization.register_serializer(AdvanceLossHandlerSerializer(), "AdvanceLossHandler")
