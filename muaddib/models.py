@@ -47,15 +47,24 @@ MODELS_ARCHS = {
     },
     "StackedCNNTime2Vec": {
         "arch": "CNNArch",
-        "architecture_args": {"block_repetition": 2,"get_input_layer_args":{"time2vec_kernel_size":1}},
+        "architecture_args": {
+            "block_repetition": 2,
+            "get_input_layer_args": {"time2vec_kernel_size": 1},
+        },
     },
     "StackedCNNTime2Vec8": {
         "arch": "CNNArch",
-        "architecture_args": {"block_repetition": 2,"get_input_layer_args":{"time2vec_kernel_size":8}},
+        "architecture_args": {
+            "block_repetition": 2,
+            "get_input_layer_args": {"time2vec_kernel_size": 8},
+        },
     },
     "StackedCNNTime2VecDist": {
         "arch": "CNNArch",
-        "architecture_args": {"block_repetition": 2,"get_input_layer_args":{"time2vec_kernel_size":[1,8]}},
+        "architecture_args": {
+            "block_repetition": 2,
+            "get_input_layer_args": {"time2vec_kernel_size": [1, 8]},
+        },
     },
     # "StackedDenseTime2Vec": {
     #     "arch": "DenseArch",
@@ -64,11 +73,9 @@ MODELS_ARCHS = {
     # "VanillaCNNTime2Vec": {
     #     "arch": "CNNArch",
     #     "architecture_args": {"get_input_layer_args":{"time2vec_kernel_size":1}},
-
     # },
     # "VanillaDenseTime2Vec": {"arch": "DenseArch",
     #         "architecture_args": {"get_input_layer_args":{"time2vec_kernel_size":1}},
-
     # },
     # "VanillaLSTMTime2Vec": {"arch": "LSTMArch",
     #         "architecture_args": {"get_input_layer_args":{"time2vec_kernel_size":1}},
@@ -89,9 +96,7 @@ MODELS_ARCHS = {
     # },
     # "UNETTime2Vec": {"arch": "UNETArch",
     #             "architecture_args": {"get_input_layer_args":{"time2vec_kernel_size":1}},
-
     # },
-
     # # # # "StackedDenseTime2Vec8": {
     # # # #     "arch": "DenseArch",
     # # # #     "architecture_args": {"block_repetition": 2,"get_input_layer_args":{"time2vec_kernel_size":8}},
@@ -99,11 +104,9 @@ MODELS_ARCHS = {
     # # # # "VanillaCNNTime2Vec8": {
     # # # #     "arch": "CNNArch",
     # # # #     "architecture_args": {"get_input_layer_args":{"time2vec_kernel_size":8}},
-
     # # # # },
     # # # # "VanillaDenseTime2Vec8": {"arch": "DenseArch",
     # # # #         "architecture_args": {"get_input_layer_args":{"time2vec_kernel_size":8}},
-
     # # # # },
     # # # # "VanillaLSTMTime2Vec8": {"arch": "LSTMArch",
     # # # #         "architecture_args": {"get_input_layer_args":{"time2vec_kernel_size":8}},
@@ -122,7 +125,6 @@ MODELS_ARCHS = {
     #     "arch": "Transformer",
     #     "architecture_args": {"block_repetition": 6,"get_input_layer_args":{"time2vec_kernel_size":8}},
     # },
-
     # "StackedCNNTime2VecDist": {
     #     "arch": "CNNArch",
     #     "architecture_args": {"block_repetition": 2,"get_input_layer_args":{"time2vec_kernel_size":24,"timedist":True}},
@@ -134,11 +136,9 @@ MODELS_ARCHS = {
     # "VanillaCNNTime2VecDist": {
     #     "arch": "CNNArch",
     #     "architecture_args": {"get_input_layer_args":{"time2vec_kernel_size":24,"timedist":True}},
-
     # },
     # "VanillaDenseTime2VecDist": {"arch": "DenseArch",
     #         "architecture_args": {"get_input_layer_args":{"time2vec_kernel_size":24,"timedist":True}},
-
     # },
     # "VanillaLSTMTime2VecDist": {"arch": "LSTMArch",
     #         "architecture_args": {"get_input_layer_args":{"time2vec_kernel_size":24,"timedist":True}},

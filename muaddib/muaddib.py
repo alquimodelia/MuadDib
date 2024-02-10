@@ -251,19 +251,18 @@ class ExperimentHandler(ShaiHulud):
             self.callbacks = callbacks
 
             model_handler_args = {
-                "archs":archs,
-                "activation_middle":activation_middle,
-                "activation_end":activation_end,
-                "X_timeseries":data_manager.X_timeseries,
-                "Y_timeseries":data_manager.Y_timeseries,
-                "filters":filters,
-
+                "archs": archs,
+                "activation_middle": activation_middle,
+                "activation_end": activation_end,
+                "X_timeseries": data_manager.X_timeseries,
+                "Y_timeseries": data_manager.Y_timeseries,
+                "filters": filters,
             }
             obj_setup_args = {
-                "model_handler_args":model_handler_args,
-                "previous_experiment":previous_experiment,
+                "model_handler_args": model_handler_args,
+                "previous_experiment": previous_experiment,
             }
-            self.obj_setup_args=obj_setup_args
+            self.obj_setup_args = obj_setup_args
             # if previous_experiment:
             #     self.previous_case=previous_experiment.best_case
             #     previous_best_model = previous_experiment.model_handler.models_confs[previous_experiment.best_exp.model]
@@ -286,23 +285,35 @@ class ExperimentHandler(ShaiHulud):
             # self.experiments = self.get_experiment_models()
 
             super().__init__(
-                obj_type="experiment", work_folder=self.work_folder, obj_setup_args=obj_setup_args,**kwargs
+                obj_type="experiment",
+                work_folder=self.work_folder,
+                obj_setup_args=obj_setup_args,
+                **kwargs,
             )
 
     def obj_setup(self, model_handler_args=None, previous_experiment=None):
-        model_handler_args = self.obj_setup_args.get("model_handler_args", model_handler_args)
-        previous_experiment = self.obj_setup_args.get("previous_experiment", previous_experiment)
+        model_handler_args = self.obj_setup_args.get(
+            "model_handler_args", model_handler_args
+        )
+        previous_experiment = self.obj_setup_args.get(
+            "previous_experiment", previous_experiment
+        )
         if isinstance(self.loss, AdvanceLossHandler):
             self.loss.set_previous_loss(previous_experiment.best_exp["loss"])
         delattr(self, "obj_setup_args")
 
-
         if previous_experiment:
-            self.previous_case=previous_experiment.best_case
-            previous_best_model = previous_experiment.model_handler.models_confs[previous_experiment.best_exp["model"]]
+            self.previous_case = previous_experiment.best_case
+            previous_best_model = (
+                previous_experiment.model_handler.models_confs[
+                    previous_experiment.best_exp["model"]
+                ]
+            )
             previous_best_model.pop("n_features_predict")
             previous_best_model.pop("n_features_train")
-            previous_best_model.update({k: v for k, v in model_handler_args.items() if v is not None})
+            previous_best_model.update(
+                {k: v for k, v in model_handler_args.items() if v is not None}
+            )
             model_handler_args = previous_best_model
 
         self.model_handler = ModelHandler(
@@ -312,22 +323,24 @@ class ExperimentHandler(ShaiHulud):
             n_features_train=self.data_manager.n_features_train,
             target_variable=self.target_variable,
             **model_handler_args,
-
         )
 
         self.experiment_list = self.list_experiments(previous_experiment)
         self.experiments = self.get_experiment_models()
         self.save()
 
-
     def list_experiments(self, previous_experiment=None):
         previous_experiment = previous_experiment or {}
-        previous_best_exp = getattr(previous_experiment,"best_exp", {})
+        previous_best_exp = getattr(previous_experiment, "best_exp", {})
 
-        optimizer = self.optimizer or previous_best_exp.get("optimizer", "adam")
+        optimizer = self.optimizer or previous_best_exp.get(
+            "optimizer", "adam"
+        )
         loss = self.loss or previous_best_exp.get("loss", MeanSquaredError())
-        batch_size = self.batch_size or previous_best_exp.get("batch_size", 252)  
-        weights = self.weights or previous_best_exp.get("weights", False)  
+        batch_size = self.batch_size or previous_best_exp.get(
+            "batch_size", 252
+        )
+        weights = self.weights or previous_best_exp.get("weights", False)
 
         parameters_to_list = {
             "optimizer": optimizer,
@@ -374,22 +387,26 @@ class ExperimentHandler(ShaiHulud):
             )
 
     def validate_experiment(self):
-        exp_results_path = os.path.join(self.work_folder, "experiment_score.json")
+        exp_results_path = os.path.join(
+            self.work_folder, "experiment_score.csv"
+        )
         if os.path.exists(exp_results_path):
-            exp_results = pd.read_json(load_json_dict(exp_results_path))
+            exp_results = pd.read_csv(exp_results_path, index_col=0)
         else:
             exp_results = pd.DataFrame()
-        # TODO: make a full exp socre file and only valdiate if needed
         for exp in self.experiments.keys():
-            saved_exp_score = exp_results[exp_results.name==exp]
-            if len(saved_exp_score)<self.epochs:
+            saved_exp_score = exp_results[exp_results.name == exp]
+            if len(saved_exp_score) < self.epochs:
                 exp_score = self.model_handler.validate_model(
-                    exp, self.validation_fn, self.data_manager, old_score=saved_exp_score,
+                    exp,
+                    self.validation_fn,
+                    self.data_manager,
+                    old_score=saved_exp_score,
                 )
                 exp_results = pd.concat([exp_results, exp_score])
-        exp_results = exp_results.drop_duplicates(["name","epoch"])    
-        exp_results =  exp_results.reset_index(drop=True)
-        write_dict_to_file(exp_results.to_json(), exp_results_path)
+        exp_results = exp_results.drop_duplicates(["name", "epoch"])
+        exp_results = exp_results.reset_index(drop=True)
+        exp_results.to_csv(exp_results_path)
         return exp_results
 
     def validate_results(
@@ -397,7 +414,7 @@ class ExperimentHandler(ShaiHulud):
         exp_results=None,
         result_validation_fn=None,
         validation_target=None,
-        **kwargs
+        **kwargs,
     ):
         if exp_results is None:
             exp_results = self.validate_experiment()
@@ -405,10 +422,19 @@ class ExperimentHandler(ShaiHulud):
             result_validation_fn or self.result_validation_fn
         )
         validation_target = validation_target or self.validation_target
-        self.best_case, self.best_result = result_validation_fn(exp_results, validation_target, **kwargs)
+        self.best_case, self.best_result = result_validation_fn(
+            exp_results, validation_target, **kwargs
+        )
         self.best_exp = self.experiments[self.best_case.name.item()]
         self.save()
         return self.best_case
+
+    def write_report(self, exp_results=None):
+        if exp_results is None:
+            exp_results = self.validate_experiment()
+        # TODO: Write an image with a plot for each metric with benchmark
+        # TODO: write validation vs best model (year, month, day : worst and best)
+        pass
 
 
 class ModelHandler(ShaiHulud):
@@ -614,12 +640,17 @@ class ModelHandler(ShaiHulud):
         trained_folder = os.path.join(
             self.work_folder, model_case_name, "freq_saves"
         )
-        model_scores = old_score or pd.DataFrame()
+        if old_score is None:
+            model_scores = old_score
+        else:
+            model_scores = pd.DataFrame()
+        if "epoch" not in model_scores:
+            model_scores["epoch"] = None
         for trained_models in glob.glob(f"{trained_folder}/**{model_types}"):
             epoca = int(
                 os.path.basename(trained_models).replace(f"{model_types}", "")
             )
-            if epoca not  in model_scores["epoch"].values:
+            if epoca not in model_scores["epoch"].values:
                 predict_score = validation_fn(
                     trained_models,
                     datamanager,
@@ -630,7 +661,6 @@ class ModelHandler(ShaiHulud):
                     [model_scores, pd.DataFrame(predict_score)]
                 )
         return model_scores.reset_index(drop=True)
-
 
 
 # The data handle is quite good already
@@ -837,13 +867,9 @@ class DataHandler(ShaiHulud):
         return self.sequence_ravel(self.read_data(), frac=frac, **kwargs)
 
 
-
 def ExperimentFactory(
-
     data_handlers=None,
-
-target_variables=None,    
-
+    target_variables=None,
     previous_experiment_dict=None,
     **kwargs,
 ):
@@ -851,13 +877,15 @@ target_variables=None,
     experiment_dict = {}
     for target_variable in target_variables:
         data_manager = data_handlers[target_variable]
-        previous_experiment = previous_experiment_dict.get(target_variable, None)
+        previous_experiment = previous_experiment_dict.get(
+            target_variable, None
+        )
         experiment_handles = ExperimentHandler(
-                                target_variable=target_variable,
-                                data_manager=data_manager,
-                                previous_experiment=previous_experiment,
-                                **kwargs,
-                                )
+            target_variable=target_variable,
+            data_manager=data_manager,
+            previous_experiment=previous_experiment,
+            **kwargs,
+        )
 
         experiment_dict[target_variable] = experiment_handles
 

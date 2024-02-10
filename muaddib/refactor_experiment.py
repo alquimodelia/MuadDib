@@ -417,7 +417,7 @@ class Case(SpiceEyes):
 
         print("-----------------------------------------------------------")
         # print(f"Training Model {self.name} from {self.experiment_name}")
-        if self.fit_args["epochs"]>0:
+        if self.fit_args["epochs"] > 0:
             self.train_fn(
                 model_to_train=self.model_obj,
                 datamanager=self.DataManager,
@@ -501,9 +501,9 @@ class Experiment(SpiceEyes):
         self.backward_epochs = backward_epochs
         self.final_experiment_fn = final_experiment_fn
         self.mode_for_best = mode_for_best or os.getenv("MODE_FOR_BEST", None)
-        self.VALIDATION_TARGET_EXP=VALIDATION_TARGET_EXP
+        self.VALIDATION_TARGET_EXP = VALIDATION_TARGET_EXP
         super().__init__(obj_type="experiment", **kwargs)
-        if self.epochs<50:
+        if self.epochs < 50:
             self.mode_for_best = "hightest_stable"
         if self.final_experiment:
             self.mode_for_best = "highest"
@@ -678,15 +678,23 @@ class Experiment(SpiceEyes):
         return case_obj
 
     def experiment_configuration(self):
-        TARGET_VARIABLE_CASE_DICT_PATH = os.path.join(os.path.dirname(self.obj_work_folder), "case_list_dict.json")
-        TARGET_VARIABLE_CASE_DICT={}
+        TARGET_VARIABLE_CASE_DICT_PATH = os.path.join(
+            os.path.dirname(self.obj_work_folder), "case_list_dict.json"
+        )
+        TARGET_VARIABLE_CASE_DICT = {}
         if os.path.exists(TARGET_VARIABLE_CASE_DICT_PATH):
-            TARGET_VARIABLE_CASE_DICT = load_json_dict(TARGET_VARIABLE_CASE_DICT_PATH)
+            TARGET_VARIABLE_CASE_DICT = load_json_dict(
+                TARGET_VARIABLE_CASE_DICT_PATH
+            )
         # TODO: hacky way to just get MW or not
         if self.previous_experiment:
             if isinstance(self.loss, list):
-                last_worthy_case_losses = [f.loss for f in self.previous_experiment.worthy_cases]
-                last_worthy_case_losses = set(flatten_extend(last_worthy_case_losses))
+                last_worthy_case_losses = [
+                    f.loss for f in self.previous_experiment.worthy_cases
+                ]
+                last_worthy_case_losses = set(
+                    flatten_extend(last_worthy_case_losses)
+                )
                 MW_losses = [
                     f for f in last_worthy_case_losses if "mirror" in f.name
                 ]
@@ -697,11 +705,24 @@ class Experiment(SpiceEyes):
                 ]
                 if len(MW_losses) > 0:
                     self.loss = [f for f in self.loss if "mirror" in f.name]
-                    advance_names_current = set([f.name.replace("mirror_", "").split("_")[0] for f in self.loss])
-                    advance_names = [f.name.replace("mirror_", "").split("_")[0] for f in MW_losses]
+                    advance_names_current = set(
+                        [
+                            f.name.replace("mirror_", "").split("_")[0]
+                            for f in self.loss
+                        ]
+                    )
+                    advance_names = [
+                        f.name.replace("mirror_", "").split("_")[0]
+                        for f in MW_losses
+                    ]
                     # MW_losses_advance_prev=[f.name.replace("mirror_", "").split("_")[0] for f in MW_losses]
-                    if len(advance_names_current)<=1:
-                        self.loss = [f for f in self.loss if f.name.replace("mirror_", "").split("_")[0] in advance_names]
+                    if len(advance_names_current) <= 1:
+                        self.loss = [
+                            f
+                            for f in self.loss
+                            if f.name.replace("mirror_", "").split("_")[0]
+                            in advance_names
+                        ]
                     # self.loss = [f for f in self.loss if f.name in mirror_names]
                 else:
                     self.loss = [
@@ -821,13 +842,16 @@ class Experiment(SpiceEyes):
                     )
                     if new_case_obj is None:
                         if diference_wights_now_and_before:
-                            new_case_obj = self.get_case_obj(TARGET_VARIABLE_CASE_DICT, new_case_name, model_case_obj=casemodelobj_to_use,
+                            new_case_obj = self.get_case_obj(
+                                TARGET_VARIABLE_CASE_DICT,
+                                new_case_name,
+                                model_case_obj=casemodelobj_to_use,
                                 name=new_case_name,
                                 on_study_name=on_study_name_to_use,
                                 weights=True,
                                 **case_args,
                                 **commun_case_args,
-                                )
+                            )
                             # new_case_obj = Case(
                             #     model_case_obj=casemodelobj_to_use,
                             #     name=new_case_name,
@@ -845,11 +869,15 @@ class Experiment(SpiceEyes):
                             case_name
                         ]
                 if case_obj is None:
-                    case_obj = self.get_case_obj(TARGET_VARIABLE_CASE_DICT, case_name,model_case_obj=casemodelobj_to_use,
+                    case_obj = self.get_case_obj(
+                        TARGET_VARIABLE_CASE_DICT,
+                        case_name,
+                        model_case_obj=casemodelobj_to_use,
                         name=case_name,
                         on_study_name=on_study_name_to_use,
                         **case_args,
-                        **commun_case_args,)
+                        **commun_case_args,
+                    )
                     # case_obj = Case(
                     #     model_case_obj=casemodelobj_to_use,
                     #     name=case_name,
@@ -860,8 +888,12 @@ class Experiment(SpiceEyes):
                 self.conf.append(case_obj)
                 self.study_cases[case_obj.name] = case_obj
                 if case_obj.name not in TARGET_VARIABLE_CASE_DICT:
-                    TARGET_VARIABLE_CASE_DICT[case_obj.name]=case_obj.conf_file
-        write_dict_to_file(TARGET_VARIABLE_CASE_DICT,TARGET_VARIABLE_CASE_DICT_PATH)
+                    TARGET_VARIABLE_CASE_DICT[
+                        case_obj.name
+                    ] = case_obj.conf_file
+        write_dict_to_file(
+            TARGET_VARIABLE_CASE_DICT, TARGET_VARIABLE_CASE_DICT_PATH
+        )
         return self.conf
 
     def validate_experiment(self):
@@ -907,9 +939,13 @@ class Experiment(SpiceEyes):
     def write_report(self, make_tex=True):
         import pandas as pd
 
-        TARGET_VARIABLE_RESULTS_PATH = os.path.join(os.path.dirname(self.obj_work_folder), "results_score.csv")
+        TARGET_VARIABLE_RESULTS_PATH = os.path.join(
+            os.path.dirname(self.obj_work_folder), "results_score.csv"
+        )
         if os.path.exists(TARGET_VARIABLE_RESULTS_PATH):
-            target_result_score = pd.read_csv(TARGET_VARIABLE_RESULTS_PATH,index_col=0)
+            target_result_score = pd.read_csv(
+                TARGET_VARIABLE_RESULTS_PATH, index_col=0
+            )
         else:
             target_result_score = pd.DataFrame()
         print(f"writin report for {self.name}")
@@ -920,11 +956,11 @@ class Experiment(SpiceEyes):
         )
         os.makedirs(case_report_path, exist_ok=True)
         print("shame on you")
-        print("self.VALIDATION_TARGET_EXP",self.VALIDATION_TARGET_EXP)
-        print("VALIDATION_TARGET",VALIDATION_TARGET)
+        print("self.VALIDATION_TARGET_EXP", self.VALIDATION_TARGET_EXP)
+        print("VALIDATION_TARGET", VALIDATION_TARGET)
 
-        COLUMN_TO_SORT_BY =  self.VALIDATION_TARGET_EXP or VALIDATION_TARGET
-        print("COLUMN_TO_SORT_BY",COLUMN_TO_SORT_BY)
+        COLUMN_TO_SORT_BY = self.VALIDATION_TARGET_EXP or VALIDATION_TARGET
+        print("COLUMN_TO_SORT_BY", COLUMN_TO_SORT_BY)
 
         ascending_to_sort = False
 
@@ -935,10 +971,18 @@ class Experiment(SpiceEyes):
         bbb = max(case_results[COLUMN_TO_SORT_BY])
         bbb_case = case_results[case_results[COLUMN_TO_SORT_BY] == bbb]
         unique_values_list = bbb_case["name"].unique().tolist()
-        num = 1 if len(target_result_score)==0 else max(target_result_score["number"])+1
-        row_dict = {"number":[num], "name":[self.name],"best_raw_case":unique_values_list, "COLUMN_TO_SORT_BY":[COLUMN_TO_SORT_BY],
-                    "best_raw_value":[bbb] }
-
+        num = (
+            1
+            if len(target_result_score) == 0
+            else max(target_result_score["number"]) + 1
+        )
+        row_dict = {
+            "number": [num],
+            "name": [self.name],
+            "best_raw_case": unique_values_list,
+            "COLUMN_TO_SORT_BY": [COLUMN_TO_SORT_BY],
+            "best_raw_value": [bbb],
+        }
 
         print("best Value is:", bbb)
         print("Best case is:")
@@ -971,17 +1015,29 @@ class Experiment(SpiceEyes):
             case_results = case_results[
                 case_results["name"].isin(unique_values_list)
             ]
-        elif self.mode_for_best=="percentage_change":
+        elif self.mode_for_best == "percentage_change":
             # WILL no WORK FOR NON LINEAR!
-            case_results["pct"]=case_results.sort_values("epoch").groupby("name")[COLUMN_TO_SORT_BY].pct_change()
-            case_results["acc"]=case_results.sort_values("epoch").groupby("name")["pct"].pct_change()
-            max_epoch = self.epochs - max(int(0.2*self.epochs), 5)
-            max_mean = case_results[case_results["epoch"]>=max_epoch].sort_values("epoch").groupby("name")["acc"].mean()
-
+            case_results["pct"] = (
+                case_results.sort_values("epoch")
+                .groupby("name")[COLUMN_TO_SORT_BY]
+                .pct_change()
+            )
+            case_results["acc"] = (
+                case_results.sort_values("epoch")
+                .groupby("name")["pct"]
+                .pct_change()
+            )
+            max_epoch = self.epochs - max(int(0.2 * self.epochs), 5)
+            max_mean = (
+                case_results[case_results["epoch"] >= max_epoch]
+                .sort_values("epoch")
+                .groupby("name")["acc"]
+                .mean()
+            )
 
             max_mean = max(max_mean)
-        elif self.mode_for_best=="polyfit":
-            MAX_EPOCS=max(self.epochs, 200)
+        elif self.mode_for_best == "polyfit":
+            MAX_EPOCS = max(self.epochs, 200)
             case_results["wtf"] = None
 
             import copy
@@ -997,18 +1053,22 @@ class Experiment(SpiceEyes):
                 ALL_MODELS_DICT_FUNCTION,
                 get_mean_from_rolling,
             )
+
             case_results = case_results.drop_duplicates(["name", "epoch"])
             sorted_cases = case_results.sort_values(["name", "epoch"])
             # sorted_cases.loc[sorted_cases[COLUMN_TO_SORT_BY]<-100, COLUMN_TO_SORT_BY]=-100
             grouped = sorted_cases.groupby("name")
-            
 
             import matplotlib.pyplot as plt
-            figsize=(40,30)
-            fig, axes = plt.subplots(nrows=len(case_results["name"].unique()), ncols=1, figsize=figsize
+
+            figsize = (40, 30)
+            fig, axes = plt.subplots(
+                nrows=len(case_results["name"].unique()),
+                ncols=1,
+                figsize=figsize,
             )
 
-            list_of_labels = len(ALL_MODELS_DICT_FUNCTION)+1
+            list_of_labels = len(ALL_MODELS_DICT_FUNCTION) + 1
             # Get the number of unique labels
             num_labels = list_of_labels
 
@@ -1019,7 +1079,7 @@ class Experiment(SpiceEyes):
             handles = []
             labels = []
 
-            cases_results_poly= {}
+            cases_results_poly = {}
             i = 0
             for name, group in grouped:
                 group_to_use = group.sort_values("epoch")
@@ -1037,27 +1097,65 @@ class Experiment(SpiceEyes):
                 # y_scaled = y_log #* (100 + y_min) / y_shifted_max
                 # # print(y)
                 model_for_group = None
-                model_for_group_name=None
+                model_for_group_name = None
 
                 best_r2_result = None
                 best_model_results = None
                 roll_mean = None
-                best_rmse =None
-                best_met=None
-
+                best_rmse = None
+                best_met = None
 
                 ax = np.array(axes).flatten()[i]
                 import math
-                win = int(math.ceil(len(group_to_use.set_index("epoch").sort_index()[COLUMN_TO_SORT_BY])*0.1))
-                rrrrrr = get_mean_from_rolling(copy.deepcopy(group_to_use.set_index("epoch").sort_index()[COLUMN_TO_SORT_BY]), win)
 
-                group_to_use.set_index("epoch").sort_index()[COLUMN_TO_SORT_BY].plot(ax=ax)
-                ax.axhline(y=group_to_use.set_index("epoch").sort_index()[COLUMN_TO_SORT_BY].max(),color="blue", linestyle="--", label="best_vale")      
-                ax.axhline(y=rrrrrr,color="orange", linestyle="dashdot", label="best_vale")      
+                win = int(
+                    math.ceil(
+                        len(
+                            group_to_use.set_index("epoch").sort_index()[
+                                COLUMN_TO_SORT_BY
+                            ]
+                        )
+                        * 0.1
+                    )
+                )
+                rrrrrr = get_mean_from_rolling(
+                    copy.deepcopy(
+                        group_to_use.set_index("epoch").sort_index()[
+                            COLUMN_TO_SORT_BY
+                        ]
+                    ),
+                    win,
+                )
+
+                group_to_use.set_index("epoch").sort_index()[
+                    COLUMN_TO_SORT_BY
+                ].plot(ax=ax)
+                ax.axhline(
+                    y=group_to_use.set_index("epoch")
+                    .sort_index()[COLUMN_TO_SORT_BY]
+                    .max(),
+                    color="blue",
+                    linestyle="--",
+                    label="best_vale",
+                )
+                ax.axhline(
+                    y=rrrrrr,
+                    color="orange",
+                    linestyle="dashdot",
+                    label="best_vale",
+                )
 
                 lines_after = np.array(axes).flatten()[i].get_lines()
-                new_lines = [line for line in lines_after if line.get_label() not in labels]
-                new_labels = [f.get_label() for f in lines_after if f.get_label() not in labels]
+                new_lines = [
+                    line
+                    for line in lines_after
+                    if line.get_label() not in labels
+                ]
+                new_labels = [
+                    f.get_label()
+                    for f in lines_after
+                    if f.get_label() not in labels
+                ]
                 handles += new_lines
                 labels += new_labels
                 # df_to_check = case_results[case_results["name"]==name][["name",COLUMN_TO_SORT_BY, "epoch"]]
@@ -1070,27 +1168,31 @@ class Experiment(SpiceEyes):
                 #     continue
 
                 for model_name in ALL_MODELS_DICT_FUNCTION.keys():
-
-
-
-
                     model = ALL_MODELS_DICT_FUNCTION[model_name]["model"]
                     p0 = ALL_MODELS_DICT_FUNCTION[model_name]["po"]
                     try:
-                        popt, pcov = curve_fit(model, copy.deepcopy(x), copy.deepcopy(y), p0=p0)
+                        popt, pcov = curve_fit(
+                            model, copy.deepcopy(x), copy.deepcopy(y), p0=p0
+                        )
                     except Exception as e:
                         print("Could not fit curv in ", model_name)
                         print(e)
                         continue
                     # best fit
-                    model_results = [model(f, *popt) for f in range(1, max(MAX_EPOCS, len(y))+1)]
-                    if np.sum(model_results==100)>len(model_results)*0.65:
+                    model_results = [
+                        model(f, *popt)
+                        for f in range(1, max(MAX_EPOCS, len(y)) + 1)
+                    ]
+                    if (
+                        np.sum(model_results == 100)
+                        > len(model_results) * 0.65
+                    ):
                         continue
                     # model_results = [np.exp(f)-y_min-1 for f in model_results]
 
                     # model_results = [np.exp((f*y_shifted_max)/(100 + y_min))-y_min-1 for f in model_results]
                     if "epoch" not in case_plot:
-                        case_plot["epoch"] = np.arange(len(model_results))+1
+                        case_plot["epoch"] = np.arange(len(model_results)) + 1
 
                     # print("ritititi")
                     # print(len(y))
@@ -1098,13 +1200,17 @@ class Experiment(SpiceEyes):
                     # print(y)
                     # print(model_results)
 
-                    r2_res = r2_score(y, model_results[:len(y)])
-                    rmse = mean_squared_error(y, model_results[:len(y)],squared=False)
+                    r2_res = r2_score(y, model_results[: len(y)])
+                    rmse = mean_squared_error(
+                        y, model_results[: len(y)], squared=False
+                    )
 
                     if "Downward" in TARGET_VARIABLE_RESULTS_PATH:
-                        mdae=r2_res#d2_absolute_error_score(y, model_results[:len(y)])
+                        mdae = r2_res  # d2_absolute_error_score(y, model_results[:len(y)])
                     else:
-                        mdae=d2_absolute_error_score(y, model_results[:len(y)])
+                        mdae = d2_absolute_error_score(
+                            y, model_results[: len(y)]
+                        )
 
                     # print(r2_res)
                     # print(rmse)
@@ -1114,14 +1220,15 @@ class Experiment(SpiceEyes):
                     # print("max", max(model_results))
                     # print("min", min(model_results))
 
-
                     case_plot[model_name] = model_results
 
                     # case_results.loc[case_results["name"]==name, model_name]=model_results[:len(case_results[case_results["name"]==name])]
                     # case_results.loc[case_results["name"]==name].set_index("epoch").sort_index()[model_name].plot(ax=ax)
                     import math
-                    win = int(math.ceil(len(model_results)*0.1))
+
+                    win = int(math.ceil(len(model_results) * 0.1))
                     import copy
+
                     data_to_roll = copy.deepcopy(case_plot[model_name])
                     roll_mean_small = get_mean_from_rolling(data_to_roll, win)
 
@@ -1130,70 +1237,102 @@ class Experiment(SpiceEyes):
                     #     roll_mean_small=-100
                     #     mdae=-100
 
-                    
-                    if roll_mean_small >0:
-                        case_plot.set_index("epoch").sort_index()[model_name].plot(ax=ax)
-                        color = np.array(axes).flatten()[i].get_lines()[-1].get_color()
+                    if roll_mean_small > 0:
+                        case_plot.set_index("epoch").sort_index()[
+                            model_name
+                        ].plot(ax=ax)
+                        color = (
+                            np.array(axes)
+                            .flatten()[i]
+                            .get_lines()[-1]
+                            .get_color()
+                        )
 
                         # mdae = abs(roll_mean_small-rrrrrr)
                         # print("ooooooooooooooo")
                         # print(model_name)
                         # print(roll_mean_small)
                         # print(mdae)
-                        np.array(axes).flatten()[i].axhline(y=roll_mean_small,color=color, linestyle="--", label=model_name+"_mean")      
+                        np.array(axes).flatten()[i].axhline(
+                            y=roll_mean_small,
+                            color=color,
+                            linestyle="--",
+                            label=model_name + "_mean",
+                        )
                         # case_results.set_index("epoch").sort_index().groupby("name")[model_name].plot(ax=ax)
 
                         lines_after = np.array(axes).flatten()[i].get_lines()
-                        new_lines = [line for line in lines_after if line.get_label() not in labels]
-                        new_labels = [f.get_label() for f in lines_after if f.get_label() not in labels]
+                        new_lines = [
+                            line
+                            for line in lines_after
+                            if line.get_label() not in labels
+                        ]
+                        new_labels = [
+                            f.get_label()
+                            for f in lines_after
+                            if f.get_label() not in labels
+                        ]
                         handles += new_lines
                         labels += new_labels
-
-              
-
 
                     # df_to_check[model_name]=model_results[:len(case_results[case_results["name"]==name])]
                     if model_for_group is None:
                         model_for_group = model
                         best_r2_result = r2_res
                         best_model_results = model_results
-                        model_for_group_name=model_name
+                        model_for_group_name = model_name
                         roll_mean = roll_mean_small
                         best_rmse = rmse
-                        best_met=mdae
+                        best_met = mdae
 
-                    if mdae>best_met:#rmse<best_rmse:#
+                    if mdae > best_met:  # rmse<best_rmse:#
                         best_r2_result = r2_res
                         model_for_group = model
                         best_model_results = model_results
-                        model_for_group_name=model_name
+                        model_for_group_name = model_name
                         roll_mean = roll_mean_small
                         best_rmse = rmse
-                        best_met=mdae
+                        best_met = mdae
 
                 np.array(axes).flatten()[i].set_ylim([-100, 110])
                 np.array(axes).flatten()[i].set_title(name)
 
                 import math
-                win = int(math.ceil(len(best_model_results)*0.1))
+
+                win = int(math.ceil(len(best_model_results) * 0.1))
                 cases_results_poly[name] = roll_mean
-                np.array(axes).flatten()[i].axhline(y=roll_mean,color="black", linestyle="dashdot", label="winner")   
-                i+=1
+                np.array(axes).flatten()[i].axhline(
+                    y=roll_mean,
+                    color="black",
+                    linestyle="dashdot",
+                    label="winner",
+                )
+                i += 1
 
                 # folder_figures = self.obj_work_folder.replace("experiments", "reports")
 
                 # figure_name = f"case_results_{COLUMN_TO_SORT_BY}_{name}.png"
 
+                case_results.loc[
+                    case_results["name"] == name, "wtf"
+                ] = best_model_results[
+                    : len(case_results[case_results["name"] == name])
+                ]
 
-
-                case_results.loc[case_results["name"]==name, "wtf"]=best_model_results[:len(case_results[case_results["name"]==name])]
-
-            folder_figures = self.obj_work_folder.replace("experiments", "reports")
+            folder_figures = self.obj_work_folder.replace(
+                "experiments", "reports"
+            )
 
             figure_name = f"case_results_{COLUMN_TO_SORT_BY}_2.png"
-            fig.legend(handles, labels, loc="center left", bbox_to_anchor=(1, 0.5))
+            fig.legend(
+                handles, labels, loc="center left", bbox_to_anchor=(1, 0.5)
+            )
             # plt.tight_layout()
-            plt.savefig(os.path.join(folder_figures, figure_name),  bbox_inches="tight", pad_inches=0.1)
+            plt.savefig(
+                os.path.join(folder_figures, figure_name),
+                bbox_inches="tight",
+                pad_inches=0.1,
+            )
             plt.close()
             # print("............................................................")
             # print(cases_results_poly)
@@ -1211,8 +1350,6 @@ class Experiment(SpiceEyes):
             ]
             # print("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
             # print(case_results[["name", COLUMN_TO_SORT_BY, "wtf"]])
-
-
 
         if self.epochs < max(case_results["epoch"]):
             smaller_epochs = min(self.epochs, max(case_results["epoch"]))
@@ -1253,9 +1390,14 @@ class Experiment(SpiceEyes):
             # print(max(case_results[COLUMN_TO_SORT_BY]))
             # print(self.previous_experiment.best_result)
 
-            print("--------------------------------------------------------------------")
-            print("self.previous_experiment.best_result", self.previous_experiment.best_result)
-            if len(list(case_results["name"].unique()))==1:
+            print(
+                "--------------------------------------------------------------------"
+            )
+            print(
+                "self.previous_experiment.best_result",
+                self.previous_experiment.best_result,
+            )
+            if len(list(case_results["name"].unique())) == 1:
                 better_scores = case_results
             else:
                 better_scores = case_results[
@@ -1600,9 +1742,9 @@ class Experiment(SpiceEyes):
             self.benchmark_prediction_file = self.benchmark_score_file.replace(
                 ".json", "npz"
             )
-        row_dict["best_result"]=[self.best_result]
-        row_dict["worthy_model"]=self.worthy_models
-        if len(target_result_score)>0:
+        row_dict["best_result"] = [self.best_result]
+        row_dict["worthy_model"] = self.worthy_models
+        if len(target_result_score) > 0:
             if row_dict["name"][0] in target_result_score["name"]:
                 return
         # target_result_score = pd.concat([target_result_score,pd.DataFrame(row_dict)])
@@ -1615,7 +1757,7 @@ class Experiment(SpiceEyes):
         # qry = "{folder_figures}/**/**.png"
         # if len(glob.glob(qry, recursive=True)) > 0:
         #     return
-        COLUMN_TO_SORT_BY =  self.VALIDATION_TARGET_EXP or VALIDATION_TARGET
+        COLUMN_TO_SORT_BY = self.VALIDATION_TARGET_EXP or VALIDATION_TARGET
 
         METRICS_TO_CHECK = os.getenv("METRICS_TO_CHECK", None)
         metrics_to_check = None
