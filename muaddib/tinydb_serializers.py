@@ -21,6 +21,7 @@ class PosixPathSerializer(Serializer):
     def decode(self, s):
         return pathlib.Path(s)
 
+
 class PandasSerializer(Serializer):
     OBJ_CLASS = pd.DataFrame
 
@@ -29,6 +30,7 @@ class PandasSerializer(Serializer):
 
     def decode(self, s):
         return pd.DataFrame(ast.literal_eval(s))
+
 
 class KerasLossSerializer(Serializer):
     OBJ_CLASS = Loss
@@ -40,18 +42,23 @@ class KerasLossSerializer(Serializer):
             if isinstance(val, Loss):
                 val = KerasLossSerializer().encode(val)
                 params[key] = ast.literal_eval(val)
-        return str({"loss":obj.__class__.__name__.split(".")[-1], "params":params, "module":obj.__module__})
+        return str(
+            {
+                "loss": obj.__class__.__name__.split(".")[-1],
+                "params": params,
+                "module": obj.__module__,
+            }
+        )
 
     def decode(self, s):
         if not isinstance(s, dict):
             s = ast.literal_eval(s)
-        params =s["params"]
+        params = s["params"]
         if "loss_to_use" in params:
             val = params["loss_to_use"]
             val = KerasLossSerializer().decode(val)
-            params["loss_to_use"]=val
+            params["loss_to_use"] = val
             s["params"] = params
-
 
         module = importlib.import_module(s["module"])
         loss_func = getattr(module, s["loss"])
@@ -67,6 +74,7 @@ class KerasCallbackSerializer(Serializer):
     def decode(self, s):
         return getattr(alquitable.callbacks, s)
 
+
 class FunctionSerializer(Serializer):
     OBJ_CLASS = Callable
 
@@ -77,25 +85,28 @@ class FunctionSerializer(Serializer):
         module_name, function_name = s.split(":")
         module = importlib.import_module(module_name)
         return getattr(module, function_name)
- 
+
+
 class AdvanceLossHandlerSerializer(Serializer):
     OBJ_CLASS = AdvanceLossHandler
 
     def encode(self, obj):
         # Assuming `previous_experiment` can be serialized itself
-        return str({
-            "losses_to_use":[KerasLossSerializer().encode(f) for f in obj.losses_to_use]
-        })
+        return str(
+            {
+                "losses_to_use": [
+                    KerasLossSerializer().encode(f) for f in obj.losses_to_use
+                ]
+            }
+        )
 
     def decode(self, s):
         if not isinstance(s, dict):
             s = ast.literal_eval(s)
-        losses_to_use = [KerasLossSerializer().decode(f) for f in s["losses_to_use"]]
+        losses_to_use = [
+            KerasLossSerializer().decode(f) for f in s["losses_to_use"]
+        ]
         return AdvanceLossHandler(losses_to_use=losses_to_use)
-
-
-
-
 
 
 def create_class_serializer(cls):
@@ -109,6 +120,7 @@ def create_class_serializer(cls):
             return cls(conf_file=s)
 
     return class_serializer()
+
 
 # class ShaiHuludSerializer(Serializer):
 #     OBJ_CLASS = ShaiHulud
@@ -127,4 +139,6 @@ serialization.register_serializer(KerasLossSerializer(), "KerasLoss")
 serialization.register_serializer(KerasCallbackSerializer(), "KerasCallback")
 serialization.register_serializer(FunctionSerializer(), "Function")
 serialization.register_serializer(PandasSerializer(), "PandasDataFrame")
-serialization.register_serializer(AdvanceLossHandlerSerializer(), "AdvanceLossHandler")
+serialization.register_serializer(
+    AdvanceLossHandlerSerializer(), "AdvanceLossHandler"
+)

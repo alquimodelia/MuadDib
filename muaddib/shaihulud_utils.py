@@ -6,7 +6,11 @@ import keras
 
 
 def list_folders(directory_path):
-    return [entry for entry in os.listdir(directory_path) if os.path.isdir(os.path.join(directory_path, entry))]
+    return [
+        entry
+        for entry in os.listdir(directory_path)
+        if os.path.isdir(os.path.join(directory_path, entry))
+    ]
 
 
 def check_trained_epochs(freq_saves_path, model_types=".keras"):
@@ -28,13 +32,13 @@ def check_trained_epochs(freq_saves_path, model_types=".keras"):
 
 
 def flatten_extend(lst):
-   flat_list = []
-   for i in lst:
-       if isinstance(i, list):
-           flat_list.extend(flatten_extend(i))
-       else:
-           flat_list.append(i)
-   return flat_list
+    flat_list = []
+    for i in lst:
+        if isinstance(i, list):
+            flat_list.extend(flatten_extend(i))
+        else:
+            flat_list.append(i)
+    return flat_list
 
 
 def is_jsonable(x):
@@ -64,7 +68,10 @@ def write_dict_to_file(dict_to_save, path):
 
 def read_model_conf(path):
     from alquitable.layers import Time2Vec
-    mod= keras.models.model_from_json(load_json_dict(path), custom_objects={"Time2Vec": Time2Vec})
+
+    mod = keras.models.model_from_json(
+        load_json_dict(path), custom_objects={"Time2Vec": Time2Vec}
+    )
     # mod.summary()
     # import numpy as np
     # mod.predict(np.ones((1,*mod.input_shape[1:])))
@@ -106,10 +113,9 @@ def get_mirror_weight_loss(loss_name):
     loss_used = loss_used.replace("mirror_weights_oratio_u15", "")
     loss_used = loss_used.replace("mirror_weights_oratio_h22", "")
 
-
     loss_used = loss_used.replace("mirror_weights_", "")
     loss_used = loss_used.replace("mirror_loss_norm_min_max", "")
-    
+
     loss_used = loss_used.replace("mirror_loss_norm_r73", "")
     loss_used = loss_used.replace("mirror_loss_norm_s37", "")
 
@@ -174,45 +180,46 @@ def get_mirror_weight_loss(loss_name):
             )
         if "mirror_loss" in loss_name:
             if "min_max" in loss_name:
-                extra_args={}
+                extra_args = {}
                 if "73" in loss_name:
-                    extra_args["ratio_m"]=0.7
-                    extra_args["ratio_s"]=0.3
+                    extra_args["ratio_m"] = 0.7
+                    extra_args["ratio_s"] = 0.3
                 if "37" in loss_name:
-                    extra_args["ratio_m"]=0.3
-                    extra_args["ratio_s"]=0.7
+                    extra_args["ratio_m"] = 0.3
+                    extra_args["ratio_s"] = 0.7
 
                 loss_used_fn = MirrorLossNormMinMax(
                     loss_to_use=loss_used_fn(), **extra_args
                 )
             elif "norm" in loss_name:
-                extra_args={}
+                extra_args = {}
                 if "73" in loss_name:
-                    extra_args["ratio_m"]=0.7
-                    extra_args["ratio_s"]=0.3
+                    extra_args["ratio_m"] = 0.7
+                    extra_args["ratio_s"] = 0.3
                 if "37" in loss_name:
-                    extra_args["ratio_m"]=0.3
-                    extra_args["ratio_s"]=0.7
+                    extra_args["ratio_m"] = 0.3
+                    extra_args["ratio_s"] = 0.7
 
                 loss_used_fn = MirrorLossNorm(
                     loss_to_use=loss_used_fn(), **extra_args
                 )
             else:
                 loss_used_fn = MirrorLoss(
-                    loss_to_use=loss_used_fn(), 
+                    loss_to_use=loss_used_fn(),
                 )
         if "mirror_percentage" in loss_name:
             loss_used_fn = MirrorPercentage(
-                loss_to_use=loss_used_fn(), 
+                loss_to_use=loss_used_fn(),
             )
         if "mirror_normalized" in loss_name:
             loss_used_fn = MirrorNormalized(
-                loss_to_use=loss_used_fn(), 
+                loss_to_use=loss_used_fn(),
             )
     else:
         loss_used_fn = loss_used_fn()
 
     return loss_used_fn
+
 
 import itertools
 
@@ -224,33 +231,35 @@ class AdvanceLossHandler:
     def set_previous_loss(self, loss):
         self.loss = loss
 
-
     def get_advance_loss(self):
-        loss =self.loss
+        loss = self.loss
         module_name = loss.__module__
         advance_loss = loss.__class__.__name__.split(".")[-1]
         module = importlib.import_module(module_name)
-        loss_func = getattr(module, advance_loss)      
+        loss_func = getattr(module, advance_loss)
 
         if "alquitable.advanced_losses" in module_name:
             loss_args = loss.get_config()
             loss_args.pop("loss_to_use")
             loss_args.pop("name")
-            losses_to_use = [loss_func(losse_to_use=f,**loss_args) for f in losses_to_use]
+            losses_to_use = [
+                loss_func(losse_to_use=f, **loss_args) for f in losses_to_use
+            ]
         return losses_to_use
 
     def __iter__(self):
         return iter(self.get_advance_loss())
 
+
 def expand_all_alternatives(parameters_to_list):
     for key in parameters_to_list.keys():
         if not isinstance(parameters_to_list[key], (list, AdvanceLossHandler)):
-            parameters_to_list[key]=[parameters_to_list[key]]
+            parameters_to_list[key] = [parameters_to_list[key]]
 
-    alternatives=[]
+    alternatives = []
     for alternative in itertools.product(*parameters_to_list.values()):
         alternative_dict = {}
         for i, key in enumerate(parameters_to_list.keys()):
-            alternative_dict[key]=alternative[i]
+            alternative_dict[key] = alternative[i]
         alternatives.append(alternative_dict)
     return alternatives

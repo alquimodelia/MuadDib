@@ -11,11 +11,8 @@ def prediction_score(test_dataset_Y, predictions, test_allocation, model_name):
     erro_abs = np.abs(erro)
     erro_abs_sum = np.nansum(erro_abs)
 
-
-
     mse = np.nanmean(np.square(erro))
     rmse = np.sqrt(mse)
-
 
     erro_spain = test_dataset_Y - test_allocation
     erro_spain_abs = np.abs(erro_spain)
@@ -40,7 +37,6 @@ def prediction_score(test_dataset_Y, predictions, test_allocation, model_name):
     # Cenario optimo
     # maior ou igual a test, e menor que allocation
 
-
     # Melhor
     # optimo + aqueles que estao mais perto (erro mais pequeno)
     smaller_error = erro_abs < erro_spain_abs
@@ -56,7 +52,6 @@ def prediction_score(test_dataset_Y, predictions, test_allocation, model_name):
 
     optimal_mask = mask_great_or_equal & smaller_error
     optimal_percentage = (np.sum(optimal_mask) / test_dataset_Y.size) * 100
-
 
     # Assumir que é prioridade ter alocado, meljor que espanha é erro menor e ter alocado,
     # better_than_spain = smaller_error & mask_great_or_equal # assim teriamos de assumir que se eu alocasse 100000000 para 100 e espanha 95 que o meu era melhor..
@@ -228,7 +223,7 @@ def result_validation(exp_results, validation_target, **kwargs):
     exp_results = exp_results.sort_values(["name", "epoch"])
     if validation_target == "rmse":
         best_value = min(exp_results[validation_target])
-    else:        
+    else:
         best_value = max(exp_results[validation_target])
     best_value_case = exp_results[exp_results[validation_target] == best_value]
     # unique_values_list = best_value_case["name"].unique().tolist()
