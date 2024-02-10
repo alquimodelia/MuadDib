@@ -1,8 +1,9 @@
-import json
 import os
 
 import keras
 import numpy as np
+
+from muaddib.shaihulud_utils import write_dict_to_file
 
 
 def prediction_score(test_dataset_Y, predictions, test_allocation, model_name):
@@ -138,8 +139,7 @@ def save_scores(
     if epoch is not None:
         predict_score.update({"epoch": epoch})
     os.makedirs(os.path.dirname(model_score_filename), exist_ok=True)
-    with open(model_score_filename, "w") as mfile:
-        json.dump(predict_score, mfile)
+    write_dict_to_file(predict_score, model_score_filename)
 
     return
 
@@ -226,8 +226,10 @@ def train_model(
 def result_validation(exp_results, validation_target, **kwargs):
     exp_results = exp_results.drop_duplicates(["name", "epoch"])
     exp_results = exp_results.sort_values(["name", "epoch"])
-
-    best_value = max(exp_results[validation_target])
+    if validation_target == "rmse":
+        best_value = min(exp_results[validation_target])
+    else:        
+        best_value = max(exp_results[validation_target])
     best_value_case = exp_results[exp_results[validation_target] == best_value]
     # unique_values_list = best_value_case["name"].unique().tolist()
 
