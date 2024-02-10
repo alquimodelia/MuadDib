@@ -1,4 +1,5 @@
 import glob
+import importlib
 import json
 import os
 
@@ -237,13 +238,15 @@ class AdvanceLossHandler:
         advance_loss = loss.__class__.__name__.split(".")[-1]
         module = importlib.import_module(module_name)
         loss_func = getattr(module, advance_loss)
-
+        losses_to_use = loss_func
         if "alquitable.advanced_losses" in module_name:
             loss_args = loss.get_config()
-            loss_args.pop("loss_to_use")
-            loss_args.pop("name")
+            previous_sec_loss = loss_args.pop("loss_to_use")
+            loss_name = loss_args.pop("name")
+            loss_name = loss_name.replace(f"_{previous_sec_loss.name}", "")
             losses_to_use = [
-                loss_func(losse_to_use=f, **loss_args) for f in losses_to_use
+                loss_func(loss_to_use=f, name=loss_name, **loss_args)
+                for f in self.losses_to_use
             ]
         return losses_to_use
 
