@@ -6,6 +6,21 @@ import os
 import keras
 
 
+def save_scores(test_dataset_Y, predictions, test_allocation, model_test_filename, predict_score, model_score_filename, epoch=None):
+    pred_dict = {"test":test_dataset_Y,
+                "prediction":predictions,
+                "benchmark":test_allocation}
+    os.makedirs(os.path.dirname(model_test_filename), exist_ok=True)
+    np.savez_compressed(model_test_filename, **pred_dict)
+    if epoch is not None:
+        predict_score.update({"epoch":epoch})
+    os.makedirs(os.path.dirname(model_score_filename), exist_ok=True)
+    with open(model_score_filename, "w") as mfile:
+        json.dump(predict_score, mfile)
+
+    return
+
+
 def list_folders(directory_path):
     return [
         entry
