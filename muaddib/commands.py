@@ -305,3 +305,27 @@ def experiment(args):
                 "previous name result",
                 f"{exp.previous_experiment.name} with: {exp.previous_experiment.best_result}",
             )
+
+
+def train_experiment(experiment, **kwargs):
+    experiment.train_experiment(**kwargs)
+
+def validate_experiment(experiment, **kwargs):
+    experiment_results = experiment.validate_experiment()
+    best_case = experiment.validate_results(experiment_results)
+    return experiment_results
+
+def report_experiment(experiment, exp_results=None, **kwargs):
+    experiment.write_report(exp_results=exp_results)
+
+def validate(experiment, **kwargs):
+    experiment_results = validate_experiment(experiment)
+    report_experiment(experiment,experiment_results)
+
+def run_experiment(experiment, **kwargs):
+    train_experiment(experiment)
+    validate(experiment)
+
+def run_project(experiments_list):
+    for experiment in experiments_list:
+        run_experiment(experiment)

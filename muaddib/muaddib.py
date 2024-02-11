@@ -699,6 +699,7 @@ class DataHandler(ShaiHulud):
         keras_sequence_cls=None,
         sequence_args=None,
         score_path=None,
+        read_data_args=None,
         **kwargs,
     ):
         """
@@ -752,6 +753,8 @@ class DataHandler(ShaiHulud):
         self.keras_backend = keras_backend
         self.process_complete = False
 
+        self.read_data_args = read_data_args or {}
+
         self.process_fn = process_fn
         self.read_fn = read_fn
         self.validation_fn = validation_fn
@@ -770,7 +773,6 @@ class DataHandler(ShaiHulud):
         self.processed_data_path = os.path.join(
             self.processed_data_folder, self.dataset_file_name
         )
-
         if os.path.exists(self.processed_data_path):
             self.process_complete = True
         else:
@@ -807,7 +809,7 @@ class DataHandler(ShaiHulud):
         )
 
     def read_data(self, **kwargs) -> pd.DataFrame:
-        return self.read_fn(self.processed_data_path, **kwargs)
+        return self.read_fn(self.processed_data_path,**self.read_data_args, **kwargs)
 
     def validation_data(self, **kwargs):
         return self.sequence_ravel(

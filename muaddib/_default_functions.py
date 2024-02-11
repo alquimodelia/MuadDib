@@ -193,9 +193,11 @@ def train_model(
     batch_size=None,
     weights=None,
     callbacks=None,
+    training_args=None,
     **kwargs,
 ):
-    X, Y, _, _ = datamanager.training_data()
+    training_args = training_args or {}
+    X, Y, _, _ = datamanager.training_data(**training_args)
     keras.backend.clear_session()
 
     fit_args = {
@@ -220,14 +222,29 @@ def train_model(
     return history_new
 
 
-def result_validation(exp_results, validation_target, **kwargs):
+def result_validation(exp_results, validation_target,validate_mode="highest_stable", **kwargs):
     exp_results = exp_results.drop_duplicates(["name", "epoch"])
     exp_results = exp_results.sort_values(["name", "epoch"])
-    if validation_target == "rmse":
-        best_value = min(exp_results[validation_target])
-    else:
-        best_value = max(exp_results[validation_target])
-    best_value_case = exp_results[exp_results[validation_target] == best_value]
+    if validate_mode=="highest_stable":
+        group = exp_results.groupby("name")[validation_target].sum()
+        if validation_target == "rmse":
+            best_name = group.index[group.argmin()]
+        else:
+            best_name = group.index[group.argmax()]
+        
+        best_value_case = exp_results[exp_results["name"] == best_name]
+        if validation_target == "rmse":
+            best_value = min(best_value_case[validation_target])
+        else:
+            best_value = max(best_value_case[validation_target])
+        best_value_case = best_value_case[best_value_case[validation_target] == best_value]
+
+    elif validate_mode=="highest":
+        if validation_target == "rmse":
+            best_value = min(exp_results[validation_target])
+        else:
+            best_value = max(exp_results[validation_target])
+        best_value_case = exp_results[exp_results[validation_target] == best_value]
     # unique_values_list = best_value_case["name"].unique().tolist()
 
     # best_value_case = best_value_case[best_value_case["name"].isin(unique_values_list)]
