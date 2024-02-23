@@ -289,7 +289,7 @@ class ExperimentHandler(ShaiHulud):
             previous_best_model = (
                 previous_experiment.model_handler.models_confs[
                     previous_experiment.best_exp["model"]
-                ]
+                ].copy()
             )
             previous_best_model.pop("n_features_predict")
             previous_best_model.pop("n_features_train")
@@ -348,8 +348,8 @@ class ExperimentHandler(ShaiHulud):
         for model_arch in self.model_handler.models_confs.keys():
             for case, case_args in self.name_experiments().items():
                 case_name = f"{model_arch}_{case}"
-                experiments[case_name] = case_args
-                experiments[case_name]["model"] = model_arch
+                experiments[case_name] = case_args.copy()
+                experiments[case_name]["model"] = f"{model_arch}"
         return experiments
 
     def train_experiment(self):
@@ -368,7 +368,7 @@ class ExperimentHandler(ShaiHulud):
                 **exp_fit_args,
             )
 
-    def validate_experiment(self):
+    def validate_experiment(self, **kwargs):
         exp_results_path = os.path.join(
             self.work_folder, "experiment_score.csv"
         )
@@ -390,6 +390,7 @@ class ExperimentHandler(ShaiHulud):
                     self.validation_fn,
                     self.data_manager,
                     old_score=saved_exp_score,
+                    **kwargs
                 )
                 exp_results = pd.concat([exp_results, exp_score])
         exp_results = exp_results.drop_duplicates(["name", "epoch"])
@@ -402,6 +403,7 @@ class ExperimentHandler(ShaiHulud):
         exp_results=None,
         result_validation_fn=None,
         validation_target=None,
+        metrics_to_save_fn=None,
         **kwargs,
     ):
         if exp_results is None:
@@ -410,10 +412,13 @@ class ExperimentHandler(ShaiHulud):
             result_validation_fn or self.result_validation_fn
         )
         validation_target = validation_target or self.validation_target
+        exp_results = exp_results[exp_results["name"].isin(self.experiments.keys())]
         self.best_case, self.best_result = result_validation_fn(
             exp_results, validation_target, **kwargs
         )
         self.best_exp = self.experiments[self.best_case.name.item()]
+        if metrics_to_save_fn:
+            self.exp_metrics = metrics_to_save_fn(experiment=self, exp_results=exp_results)
         self.save()
         return self.best_case
 
@@ -439,10 +444,11 @@ class ExperimentHandler(ShaiHulud):
             "figure_name", f"experiment_results_{self.target_variable}.png"
         )
         limit_by = kwargs.pop("limit_by", "benchmark")
+        metrics_to_check = kwargs.pop("metrics_to_check", None)
         os.makedirs(folder_figures, exist_ok=True)
         self.write_report_fn(
             exp_results,
-            metrics_to_check=None,
+            metrics_to_check=metrics_to_check,
             benchmark_score=benchmark_score,
             folder_figures=folder_figures,
             figure_name=figure_name,
@@ -670,6 +676,7 @@ class ModelHandler(ShaiHulud):
                     trained_models,
                     datamanager,
                     model_name=model_case_name,
+                    **kwargs,
                 )
                 predict_score["epoch"] = epoca
                 model_scores = pd.concat(
@@ -700,6 +707,7 @@ class DataHandler(ShaiHulud):
         sequence_args=None,
         score_path=None,
         read_data_args=None,
+        commun_steps=0,
         **kwargs,
     ):
         """
@@ -747,6 +755,7 @@ class DataHandler(ShaiHulud):
         # Data speciifics
         self.X_timeseries = X_timeseries
         self.Y_timeseries = Y_timeseries
+        self.commun_steps=commun_steps
         self.datetime_col = datetime_col
         self.columns_Y = columns_Y
 
@@ -816,26 +825,27 @@ class DataHandler(ShaiHulud):
             copy.deepcopy(self.get_validation_dataframe()), frac=1, **kwargs
         )
 
-    def benchmark_data(self, return_validation_dataset_Y=False, **kwargs):
+    def benchmark_data(self, return_validation_dataset_Y=False,alloc_dict=None, skiping_step=24, train_features_folga=24,**kwargs):
+        alloc_dict = alloc_dict or {
+                "UpwardUsedSecondaryReserveEnergy": "SecondaryReserveAllocationAUpward",
+                "DownwardUsedSecondaryReserveEnergy": "SecondaryReserveAllocationADownward",
+            }
         # TODO: wtf, too specific for this case....
         (
             validation_dataset_X,
             validation_dataset_Y,
             _,
             _,
-        ) = self.validation_data(skiping_step=24, train_features_folga=24)
+        ) = self.validation_data(skiping_step=skiping_step, train_features_folga=train_features_folga)
         if return_validation_dataset_Y:
             return validation_dataset_Y
 
-        alloc_dict = {
-            "UpwardUsedSecondaryReserveEnergy": "SecondaryReserveAllocationAUpward",
-            "DownwardUsedSecondaryReserveEnergy": "SecondaryReserveAllocationADownward",
-        }
-        alloc_column = []
-        for y in self.columns_Y:
-            allo = alloc_dict[y]
-            alloc_column.append(allo)
-
+        alloc_column = self.columns_Y
+        if isinstance(alloc_dict, dict):
+            alloc_column = []
+            for y in self.columns_Y:
+                allo = alloc_dict[y]
+                alloc_column.append(allo)
         validation_benchmark = (
             self.get_validation_dataframe()[alloc_column]
             .iloc[self.X_timeseries : -self.Y_timeseries]
@@ -892,10 +902,13 @@ def ExperimentFactory(
 ):
     previous_experiment_dict = previous_experiment_dict or {}
     experiment_dict = {}
-    for target_variable in target_variables:
-        data_manager = data_handlers[target_variable]
+    # Make it so that it allows for diff variables on multiplr targ exp
+    for target_project in data_handlers.keys():
+        data_manager = data_handlers[target_project]
+        target_variable =data_manager.target_variable
+
         previous_experiment = previous_experiment_dict.get(
-            target_variable, None
+            target_project, None
         )
         experiment_handles = ExperimentHandler(
             target_variable=target_variable,
@@ -904,6 +917,7 @@ def ExperimentFactory(
             **kwargs,
         )
 
-        experiment_dict[target_variable] = experiment_handles
+        experiment_dict[target_project] = experiment_handles
 
     return experiment_dict
+
