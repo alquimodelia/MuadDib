@@ -4,7 +4,7 @@ import inspect
 import math
 import os
 import pathlib
-
+import shutil
 import keras
 import numpy as np
 import pandas as pd
@@ -153,14 +153,21 @@ class ProjectFolder(ShaiHulud):
         self.trained_models_folder = self.models_folder.joinpath(
             "trained_models"
         )
+        self.final_models_folder = self.models_folder.joinpath(
+            "final_models"
+        )
 
         self.trained_models_folder_variables = []
+        self.final_models_folder_variables = []
         self.reports_folder_variables = []
         self.experiments_variables_variables = []
 
         for target_variable in self.target_variables:
             self.trained_models_folder_variables.append(
                 self.trained_models_folder.joinpath(target_variable)
+            )
+            self.final_models_folder_variables.append(
+                self.final_models_folder.joinpath(target_variable)
             )
             self.reports_folder_variables.append(
                 self.reports_folder.joinpath(target_variable)
@@ -181,6 +188,7 @@ class ProjectFolder(ShaiHulud):
             self.trained_models_folder_variables
             + self.reports_folder_variables
             + self.experiments_variables_variables
+            + self.final_models_folder_variables
         ):
             if isinstance(folder, pathlib.Path):
                 os.makedirs(folder, exist_ok=True)
@@ -212,6 +220,7 @@ class ExperimentHandler(ShaiHulud):
         validation_target=None,
         write_report_fn=None,
         previous_experiment=None,
+        final_experiment=False,
         **kwargs,
     ):
         """
@@ -240,6 +249,7 @@ class ExperimentHandler(ShaiHulud):
             self.work_folder = os.path.join(
                 project_manager.experiment_folder,
                 self.target_variable,
+                data_manager.name,
                 self.name,
             )
             self.data_manager = data_manager
@@ -248,6 +258,7 @@ class ExperimentHandler(ShaiHulud):
             self.result_validation_fn = result_validation_fn
             self.validation_target = validation_target
             self.write_report_fn = write_report_fn
+            self.final_experiment=final_experiment
 
             self.epochs = epochs
             self.callbacks = callbacks
@@ -257,7 +268,7 @@ class ExperimentHandler(ShaiHulud):
                 "activation_middle": activation_middle,
                 "activation_end": activation_end,
                 "X_timeseries": data_manager.X_timeseries,
-                "Y_timeseries": data_manager.Y_timeseries,
+                "Y_timeseries": data_manager.Y_timeseries+data_manager.commun_steps,
                 "filters": filters,
             }
             obj_setup_args = {
@@ -304,6 +315,7 @@ class ExperimentHandler(ShaiHulud):
             n_features_predict=self.data_manager.n_features_predict,
             n_features_train=self.data_manager.n_features_train,
             target_variable=self.target_variable,
+            data_manager_name=self.data_manager.name,
             **model_handler_args,
         )
 
@@ -323,7 +335,6 @@ class ExperimentHandler(ShaiHulud):
             "batch_size", 252
         )
         weights = self.weights or previous_best_exp.get("weights", False)
-
         parameters_to_list = {
             "optimizer": optimizer,
             "loss": loss,
@@ -417,6 +428,11 @@ class ExperimentHandler(ShaiHulud):
             exp_results, validation_target, **kwargs
         )
         self.best_exp = self.experiments[self.best_case.name.item()]
+        if self.final_experiment:
+            best_model_path = os.path.join(self.model_handler.work_folder, self.best_case.name.item(), "freq_saves", f"{self.best_case.epoch.item()}.keras")
+            final_model_path = os.path.join(self.project_manager.final_models_folder, self.target_variable, self.data_manager.name, "final_model.keras")
+            os.makedirs(os.path.dirname(final_model_path), exist_ok=True)
+            shutil.copy(best_model_path, final_model_path)
         if metrics_to_save_fn:
             self.exp_metrics = metrics_to_save_fn(experiment=self, exp_results=exp_results)
         self.save()
@@ -472,7 +488,7 @@ class ModelHandler(ShaiHulud):
         n_features_predict=None,
         target_variable=None,
         project_manager=None,
-        data_manager=None,
+        data_manager_name="",
         **kwargs,
     ):
         """
@@ -499,7 +515,7 @@ class ModelHandler(ShaiHulud):
         self.n_features_predict = n_features_predict
 
         self.work_folder = os.path.join(
-            project_manager.trained_models_folder, target_variable
+            project_manager.trained_models_folder, target_variable, data_manager_name
         )
         self.configuration_folder = project_manager.model_configuration_folder
 
@@ -762,15 +778,17 @@ class DataHandler(ShaiHulud):
         self.keras_backend = keras_backend
         self.process_complete = False
 
-        self.read_data_args = read_data_args or {}
+        self.read_data_args = copy.deepcopy(read_data_args) or {}
 
         self.process_fn = process_fn
         self.read_fn = read_fn
         self.validation_fn = validation_fn
         self.process_benchmark_fn = process_benchmark_fn
+        self.sequence_args = copy.deepcopy(sequence_args) or {}
 
         self.keras_sequence_cls = keras_sequence_cls
-        self.sequence_args = sequence_args or {}
+        if commun_steps>0:
+            self.sequence_args["commun_timesteps"]=commun_steps
 
         self.benchmark_score_path = score_path
 
