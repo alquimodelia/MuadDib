@@ -5,6 +5,7 @@ import math
 import os
 import pathlib
 import shutil
+
 import keras
 import numpy as np
 import pandas as pd
@@ -162,6 +163,8 @@ class ProjectFolder(ShaiHulud):
         self.reports_folder_variables = []
         self.experiments_variables_variables = []
 
+        self.history = {}
+
         for target_variable in self.target_variables:
             self.trained_models_folder_variables.append(
                 self.trained_models_folder.joinpath(target_variable)
@@ -262,13 +265,13 @@ class ExperimentHandler(ShaiHulud):
 
             self.epochs = epochs
             self.callbacks = callbacks
-
+            extra_y_timesteps = max([0,data_manager.commun_steps])
             model_handler_args = {
                 "archs": archs,
                 "activation_middle": activation_middle,
                 "activation_end": activation_end,
                 "X_timeseries": data_manager.X_timeseries,
-                "Y_timeseries": data_manager.Y_timeseries+data_manager.commun_steps,
+                "Y_timeseries": data_manager.Y_timeseries+extra_y_timesteps,
                 "filters": filters,
             }
             obj_setup_args = {
@@ -294,7 +297,6 @@ class ExperimentHandler(ShaiHulud):
         if isinstance(self.loss, AdvanceLossHandler):
             self.loss.set_previous_loss(previous_experiment.best_exp["loss"])
         delattr(self, "obj_setup_args")
-
         if previous_experiment:
             self.previous_case = previous_experiment.best_case
             previous_best_model = (
@@ -308,6 +310,13 @@ class ExperimentHandler(ShaiHulud):
                 {k: v for k, v in model_handler_args.items() if v is not None}
             )
             model_handler_args = previous_best_model
+        print("------------------------------------------------------------")
+        print("doing the exp", self.name)
+        print("previous_experiment",previous_experiment)
+        if previous_experiment:
+            print("previous_experiment",previous_experiment.best_case)
+        print("model_handler_args",model_handler_args)
+        print("--------------------------------------------------")
 
         self.model_handler = ModelHandler(
             name=self.name,
@@ -326,7 +335,7 @@ class ExperimentHandler(ShaiHulud):
     def list_experiments(self, previous_experiment=None):
         previous_experiment = previous_experiment or {}
         previous_best_exp = getattr(previous_experiment, "best_exp", {})
-
+        previous_best_exp = {**previous_best_exp}
         optimizer = self.optimizer or previous_best_exp.get(
             "optimizer", "adam"
         )
@@ -380,6 +389,7 @@ class ExperimentHandler(ShaiHulud):
             )
 
     def validate_experiment(self, **kwargs):
+        print(kwargs)
         exp_results_path = os.path.join(
             self.work_folder, "experiment_score.csv"
         )
@@ -424,17 +434,39 @@ class ExperimentHandler(ShaiHulud):
         )
         validation_target = validation_target or self.validation_target
         exp_results = exp_results[exp_results["name"].isin(self.experiments.keys())]
+        exp_results = exp_results[exp_results["epoch"]>50]
+        exp_count = kwargs.pop("exp_count", None)
         self.best_case, self.best_result = result_validation_fn(
             exp_results, validation_target, **kwargs
         )
+        if len(self.best_case)>0:
+            exp_results = exp_results[exp_results["name"].isin(self.best_case.name.unique())]
+            exp_count = kwargs.pop("exp_count", None)
+            self.best_case, self.best_result = result_validation_fn(
+                exp_results, "rmse", **kwargs
+            )
+        
         self.best_exp = self.experiments[self.best_case.name.item()]
         if self.final_experiment:
             best_model_path = os.path.join(self.model_handler.work_folder, self.best_case.name.item(), "freq_saves", f"{self.best_case.epoch.item()}.keras")
             final_model_path = os.path.join(self.project_manager.final_models_folder, self.target_variable, self.data_manager.name, "final_model.keras")
             os.makedirs(os.path.dirname(final_model_path), exist_ok=True)
+            print("ooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo")
+            print(best_model_path)
             shutil.copy(best_model_path, final_model_path)
         if metrics_to_save_fn:
             self.exp_metrics = metrics_to_save_fn(experiment=self, exp_results=exp_results)
+        if exp_count is not None:
+            if self.target_variable not in self.project_manager.history:
+                self.project_manager.history[self.target_variable] = {}
+            if self.data_manager.name not in self.project_manager.history[self.target_variable]:
+                self.project_manager.history[self.target_variable][self.data_manager.name] = {}
+            self.project_manager.history[self.target_variable][self.data_manager.name][f"{exp_count}"] ={
+                "best_model":self.best_case.name.item(),
+                "epoch":self.best_case.epoch.item(),
+                "best_value":self.best_case[validation_target].item(),
+            }
+            self.project_manager.save()
         self.save()
         return self.best_case
 
@@ -462,6 +494,7 @@ class ExperimentHandler(ShaiHulud):
         limit_by = kwargs.pop("limit_by", "benchmark")
         metrics_to_check = kwargs.pop("metrics_to_check", None)
         os.makedirs(folder_figures, exist_ok=True)
+        exp_results = exp_results[exp_results["name"].isin(self.experiments.keys())]
         self.write_report_fn(
             exp_results,
             metrics_to_check=metrics_to_check,
@@ -924,7 +957,6 @@ def ExperimentFactory(
     for target_project in data_handlers.keys():
         data_manager = data_handlers[target_project]
         target_variable =data_manager.target_variable
-
         previous_experiment = previous_experiment_dict.get(
             target_project, None
         )

@@ -51,18 +51,18 @@ class KerasLossSerializer(Serializer):
         )
 
     def decode(self, s):
-        if not isinstance(s, dict):
-            s = ast.literal_eval(s)
-        params = s["params"]
+        # if not isinstance(s, dict):
+        #     s = ast.literal_eval(s)
+        params = s.params
         if "loss_to_use" in params:
             val = params["loss_to_use"]
             val = KerasLossSerializer().decode(val)
             params["loss_to_use"] = val
-            s["params"] = params
+            s.params = params
 
-        module = importlib.import_module(s["module"])
-        loss_func = getattr(module, s["loss"])
-        return loss_func(**s["params"])
+        module = importlib.import_module(s.module)
+        loss_func = getattr(module, s.loss)
+        return loss_func(**s.params)
 
 
 class KerasCallbackSerializer(Serializer):
@@ -101,6 +101,7 @@ class AdvanceLossHandlerSerializer(Serializer):
         )
 
     def decode(self, s):
+        print(s)
         if not isinstance(s, dict):
             s = ast.literal_eval(s)
         losses_to_use = [
