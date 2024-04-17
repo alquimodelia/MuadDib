@@ -610,16 +610,8 @@ class ModelHandler(ShaiHulud):
             constructor.__name__.lower().replace("handler", "")
         ] = constructor
 
-
-ModelHandler.register(KerasModelHandler)
-ModelHandler.register(StatsModelHandler)
-
-
-class ModelHandlerFactory:
-    def __init__(
-        self,
-        **kwargs,
-    ):
+    @classmethod
+    def create_model_handlers(cls, **kwargs):
         model_archs_hander = dict()
         archs = kwargs.pop("archs", [])
         if not isinstance(archs, list):
@@ -663,5 +655,8 @@ class ModelHandlerFactory:
             ] = ModelHandler.registry[model_handler_name](
                 **model_handler_kwargs
             )
+        return model_handlers_to_return
 
-        self.model_handlers_to_return = model_handlers_to_return
+
+ModelHandler.register(KerasModelHandler)
+ModelHandler.register(StatsModelHandler)
