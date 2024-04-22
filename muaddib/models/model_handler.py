@@ -88,7 +88,6 @@ class BaseModelHandler(ShaiHulud):
 
 
 class KerasModelHandler(BaseModelHandler):
-    models_confs = None
     model_args = [
         "activation_end",
         "activation_middle",
@@ -369,7 +368,6 @@ class StatsModelHandler(BaseModelHandler):
 
     """
 
-    models_confs = None
     model_args = [
         "p",
         "d",
@@ -414,7 +412,7 @@ class StatsModelHandler(BaseModelHandler):
         self.project_manager = project_manager
         self.configuration_folder = project_manager.model_configuration_folder
         self.models_confs_list = self.list_models_confs()
-        self.models_confs = self.name_models()
+        self.name_models()
 
         super().__init__(**kwargs)
 
@@ -502,7 +500,6 @@ class StatsModelHandler(BaseModelHandler):
         return expanded_models_list
 
     def list_models_confs(self):
-        print(self.__dict__)
         archs = self.archs or "AR"
         if not isinstance(archs, list):
             archs = [archs]
@@ -652,7 +649,7 @@ class ModelHandler(ShaiHulud):
 
             model_handlers_to_return[
                 model_handler_name
-            ] = ModelHandler.registry[model_handler_name](
+            ] = ModelHandler(model_backend=model_handler_name,
                 **model_handler_kwargs
             )
         return model_handlers_to_return

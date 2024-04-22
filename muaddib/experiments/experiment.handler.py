@@ -14,7 +14,14 @@ from muaddib.shaihulud_utils import (
 )
 
 
-class ExperimentHandler(ShaiHulud):
+
+
+class BaseExperiment(ShaiHulud):
+    def __init__(self):
+        pass
+
+
+class KerasExperiment(ShaiHulud):
     def __init__(
         self,
         name=None,
@@ -31,7 +38,7 @@ class ExperimentHandler(ShaiHulud):
         target_variable=None,
         data_manager=None,
         project_manager=None,
-        model_handler=None,
+        model_handlers=None,
         train_fn=None,
         epochs=None,
         callbacks=None,
@@ -82,6 +89,14 @@ class ExperimentHandler(ShaiHulud):
 
             self.epochs = epochs
             self.callbacks = callbacks
+            model_handlers = model_handlers or []
+            if not isinstance(model_handlers, list):
+                model_handlers = [model_handlers]
+            self.model_handlers = dict()
+
+            for model_handler in model_handlers:
+                self.model_handlers[model_handler.name] = model_handler
+
             extra_y_timesteps = max([0, data_manager.commun_steps])
             model_handler_args = {
                 "archs": archs,
@@ -142,8 +157,10 @@ class ExperimentHandler(ShaiHulud):
             n_features_train=self.data_manager.n_features_train,
             target_variable=self.target_variable,
             data_manager_name=self.data_manager.name,
+            train_fn=self.train_fn,
             **model_handler_args,
         )
+        self.model_handlers[self.model_handler.name] = self.model_handler
 
         self.experiment_list = self.list_experiments(previous_experiment)
         self.experiments = self.get_experiment_models()
@@ -182,11 +199,16 @@ class ExperimentHandler(ShaiHulud):
 
     def get_experiment_models(self):
         experiments = {}
-        for model_arch in self.model_handler.models_confs.keys():
-            for case, case_args in self.name_experiments().items():
-                case_name = f"{model_arch}_{case}"
-                experiments[case_name] = case_args.copy()
-                experiments[case_name]["model"] = f"{model_arch}"
+        for model_handler in self.model_handlers.values():
+            for model_arch in model_handler.models_confs.keys():
+                for case, case_args in self.name_experiments().items():
+                    case_name = f"{model_arch}_{case}"
+                    experiments[case_name] = case_args.copy()
+                    experiments[case_name]["model"] = f"{model_arch}"
+                    experiments[model_arch][
+                        "model_handler"
+                    ] = model_handler.name
+
         return experiments
 
     def train_experiment(self):
@@ -196,10 +218,12 @@ class ExperimentHandler(ShaiHulud):
             exp_fit_args = {**exp_args}
             if "model" in exp_fit_args:
                 exp_fit_args.pop("model")
-            self.model_handler.train_model(
+            if "model_handler" in exp_fit_args:
+                model_handler_name = exp_fit_args.pop("model_handler")
+
+            self.model_handlers[model_handler_name].train_model(
                 exp,
                 self.epochs,
-                self.train_fn,
                 self.data_manager,
                 callbacks=self.callbacks,
                 **exp_fit_args,
@@ -351,31 +375,52 @@ class ExperimentHandler(ShaiHulud):
         # TODO: write validation vs best model (year, month, day : worst and best)
 
 
-def ExperimentFactory(
-    data_handlers=None,
-    target_variables=None,
-    previous_experiment_dict=None,
-    **kwargs,
-):
-    previous_experiment_dict = previous_experiment_dict or {}
-    experiment_dict = {}
-    # Make it so that it allows for diff variables on multiplr targ exp
-    for target_project in data_handlers.keys():
-        data_manager = data_handlers[target_project]
-        target_variable = data_manager.target_variable
-        previous_experiment = previous_experiment_dict.get(
-            target_project, None
-        )
-        experiment_handles = ExperimentHandler(
-            target_variable=target_variable,
-            data_manager=data_manager,
-            previous_experiment=previous_experiment,
-            **kwargs,
-        )
+class StatsExperiment(BaseExperiment):
+    pass
 
-        experiment_dict[target_project] = experiment_handles
 
-    return experiment_dict
+class ExperimentHandler(ShaiHulud):
+    registry = dict()
+
+    def __init__(self):
+        pass
+
+    def __new__(cls, model_backend: str, **kwargs):
+        # Dynamically create an instance of the specified model class
+        model_backend = model_backend.lower()
+        exphandler_class = ExperimentHandler.registry[model_backend]
+        instance = super().__new__(exphandler_class)
+        # Inspect the __init__ method of the model class to get its parameters
+        init_params = inspect.signature(cls.__init__).parameters
+        # Separate kwargs based on the parameters expected by the model's __init__
+        modelhandler_kwargs = {
+            k: v for k, v in kwargs.items() if k in init_params
+        }
+        modelbackend_kwargs = {
+            k: v for k, v in kwargs.items() if k not in init_params
+        }
+
+        for name, method in cls.__dict__.items():
+            if "__" in name:
+                continue
+            if callable(method) and hasattr(instance, name):
+                instance.__dict__[name] = method.__get__(instance, cls)
+
+        cls.__init__(instance, **modelhandler_kwargs)
+        instance.__init__(**modelbackend_kwargs)
+
+        return instance
+
+    @staticmethod
+    def register(constructor):
+        # TODO: only register if its a BaseModel subclass
+        ExperimentHandler.registry[
+            constructor.__name__.lower().replace("handler", "")
+        ] = constructor
+
+
+ExperimentHandler.register(KerasExperiment)
+ExperimentHandler.register(StatsExperiment)
 
 
 def ExperimentFactory(

@@ -6,6 +6,8 @@ import keras
 import numpy as np
 import pandas as pd
 
+from muaddib.muaddib import ShaiHulud
+
 
 # The data handle is quite good already
 class DataHandler(ShaiHulud):
