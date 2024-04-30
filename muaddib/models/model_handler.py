@@ -9,8 +9,11 @@ from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.vector_ar.var_model import VAR
 
 from muaddib.models.default_function import (
+    inference_model,
     keras_train_model,
+    metric_scores_default,
     statsmodel_train_model,
+    validate_model,
 )
 from muaddib.muaddib import ShaiHulud
 from muaddib.shaihulud_utils import (
@@ -55,6 +58,9 @@ class BaseModelHandler(ShaiHulud):
         name=None,
         target_variable=None,
         train_fn=None,
+        metric_scores_fn=None,
+        validation_fn=None,
+        inference_fn=None,
         **kwargs,
     ):
         self.name = name
@@ -67,6 +73,9 @@ class BaseModelHandler(ShaiHulud):
         self.target_variable = self.datamanager.target_variable
 
         self.train_fn = train_fn
+        self.validation_fn = validation_fn
+        self.inference_fn = inference_fn
+        self.metric_scores_fn = metric_scores_fn or metric_scores_default
         self.set_experiments()
 
         super().__init__(work_folder=self.work_folder, **kwargs)
@@ -359,8 +368,9 @@ class KerasModelHandler(BaseModelHandler):
     def validate_model(
         self,
         model_case_name,
-        validation_fn,
         datamanager,
+        validation_fn=None,
+        inference_fn=None,
         old_score=None,
         model_types=".keras",
         **kwargs,
@@ -368,8 +378,15 @@ class KerasModelHandler(BaseModelHandler):
         trained_folder = os.path.join(
             self.work_folder, model_case_name, "freq_saves"
         )
+        validation_fn = validation_fn or self.validation_fn or validate_model
+        inference_fn = inference_fn or self.inference_fn or inference_model
+        prediction_score_path = trained_folder.replace(
+            "freq_saves", "predictions_score.csv"
+        )
         if old_score is not None:
             model_scores = old_score
+        elif os.path.exists(prediction_score_path):
+            model_scores = pd.read_csv(prediction_score_path)
         else:
             model_scores = pd.DataFrame()
         if "epoch" not in model_scores:
@@ -378,18 +395,35 @@ class KerasModelHandler(BaseModelHandler):
             epoca = int(
                 os.path.basename(trained_models).replace(f"{model_types}", "")
             )
+
+            prediction_path = os.path.dirname(trained_models).replace(
+                "freq_saves", "predictions.npz"
+            )
+            prediction_name = f"prediction_{epoca}"
             if epoca not in model_scores["epoch"].values:
-                predict_score = validation_fn(
+                prediction_file_dict = inference_fn(
+                    prediction_path,
+                    prediction_name,
                     trained_models,
-                    datamanager,
-                    model_name=model_case_name,
+                    datamanager=datamanager,
+                    model_type="keras",
                     **kwargs,
                 )
+                # TODO: only do predict if there is none, maybe its hapening
+                predict_score = validation_fn(
+                    prediction_file_dict,
+                    prediction_name,
+                    metric_scores=self.metric_scores_fn,
+                )
+
                 predict_score["epoch"] = epoca
+                predict_score["name"] = model_case_name
                 model_scores = pd.concat(
                     [model_scores, pd.DataFrame(predict_score)]
                 )
-        return model_scores.reset_index(drop=True)
+        model_scores = model_scores.reset_index(drop=True)
+        model_scores.to_csv(prediction_score_path, index=False)
+        return model_scores
 
 
 class StatsModelHandler(BaseModelHandler):
@@ -638,10 +672,42 @@ class StatsModelHandler(BaseModelHandler):
 
         return
 
-    def validate_model(
-        self,
-    ):
-        return
+    # def validate_model(
+    #     self,
+    #     model_case_name,
+    #     validation_fn,
+    #     datamanager,
+    #     old_score=None,
+    #     model_types=".keras",
+    #     **kwargs,
+    # ):
+
+    #     trained_folder = os.path.join(
+    #         self.work_folder, model_case_name, "freq_saves"
+    #     )
+    #     validation_fn = validation_fn or self.validation_fn or statsmodel_validate_model
+    #     if old_score is not None:
+    #         model_scores = old_score
+    #     else:
+    #         model_scores = pd.DataFrame()
+    #     if "epoch" not in model_scores:
+    #         model_scores["epoch"] = None
+    #     for trained_models in glob.glob(f"{trained_folder}/**{model_types}"):
+    #         epoca = int(
+    #             os.path.basename(trained_models).replace(f"{model_types}", "")
+    #         )
+    #         if epoca not in model_scores["epoch"].values:
+    #             predict_score = validation_fn(
+    #                 trained_models,
+    #                 datamanager,
+    #                 model_name=model_case_name,
+    #                 **kwargs,
+    #             )
+    #             predict_score["epoch"] = epoca
+    #             model_scores = pd.concat(
+    #                 [model_scores, pd.DataFrame(predict_score)]
+    #             )
+    #     return model_scores.reset_index(drop=True)
 
 
 class ModelHandler(ShaiHulud):

@@ -1,5 +1,7 @@
 import os
 
+import pandas as pd
+
 from muaddib.models.model_handler import ModelHandler
 from muaddib.muaddib import ShaiHulud
 
@@ -105,6 +107,7 @@ class ExperimentHandler(ShaiHulud):
             self.obj_setup()
         for exp, exp_args in self.experiments.items():
             exp_fit_args = {**exp_args}
+            # TODO: clean
             if "model" in exp_fit_args:
                 exp_fit_args.pop("model")
             if "model_handler_name" in exp_fit_args:
@@ -112,12 +115,46 @@ class ExperimentHandler(ShaiHulud):
             exp_fit_args = self.model_handlers[model_handler_name].exp_cases[
                 exp
             ]
-            print(exp_fit_args)
+
             self.model_handlers[model_handler_name].train_model(
                 exp,
                 datamanager=self.data_manager,
                 **exp_fit_args,
             )
+
+    def validate_experiment(self, **kwargs):
+        exp_results_path = os.path.join(
+            self.work_folder, "experiment_score.csv"
+        )
+        if os.path.exists(exp_results_path):
+            exp_results = pd.read_csv(exp_results_path, index_col=0)
+        else:
+            exp_results = pd.DataFrame()
+        for exp in self.experiments.keys():
+            if "name" in exp_results:
+                saved_exp_score = exp_results[exp_results["name"] == exp]
+                num_exps = len(saved_exp_score)
+            else:
+                saved_exp_score = None
+                num_exps = 0
+            model_handler_name = self.experiments[exp]["model_handler_name"]
+            experiment_epochs = self.model_handlers[model_handler_name].epochs
+            if num_exps < experiment_epochs:
+                # ##########
+                exp_score = self.model_handlers[
+                    model_handler_name
+                ].validate_model(
+                    exp,
+                    self.data_manager,
+                    old_score=saved_exp_score,
+                    **kwargs,
+                )
+                # #################
+                exp_results = pd.concat([exp_results, exp_score])
+        exp_results = exp_results.drop_duplicates(["name", "epoch"])
+        exp_results = exp_results.reset_index(drop=True)
+        exp_results.to_csv(exp_results_path, index=False)
+        return exp_results
 
 
 # class KerasExperiment(ShaiHulud):

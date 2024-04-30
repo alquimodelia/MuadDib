@@ -126,9 +126,17 @@ class DataHandler(ShaiHulud):
             self.keras_sequence_cls = DataGenerator
 
     def get_validation_dataframe(self):
-        return self.validation_fn(
+        validation_dataframe = self.validation_fn(
             copy.deepcopy(self.read_data()), columns_Y=self.columns_Y
         )
+        return validation_dataframe
+
+    def set_validation_index(self):
+        validation_dataframe = self.get_validation_dataframe
+        self.validation_index_start = validation_dataframe.index.min()
+        self.validation_index_end = validation_dataframe.index.max()
+
+        return
 
     def process_data(self, **kwargs):
         if self.process_complete:
