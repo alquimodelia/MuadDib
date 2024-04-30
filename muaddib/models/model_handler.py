@@ -3,6 +3,7 @@ import inspect
 import os
 
 import pandas as pd
+from keras.losses import MeanSquaredError
 from statsmodels.tsa.ar_model import AutoReg
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.vector_ar.var_model import VAR
@@ -54,20 +55,19 @@ class BaseModelHandler(ShaiHulud):
         name=None,
         target_variable=None,
         train_fn=None,
-        datamanager=None,
         **kwargs,
     ):
         self.name = name
         self.work_folder = os.path.join(
             self.project_manager.trained_models_folder,
-            datamanager.target_variable,
-            datamanager.name,
+            self.datamanager.target_variable,
+            self.datamanager.name,
         )
 
         self.target_variable = target_variable
 
         self.train_fn = train_fn
-        self.datamanager = datamanager
+        self.set_experiments()
 
         super().__init__(work_folder=self.work_folder, **kwargs)
 
@@ -86,6 +86,9 @@ class BaseModelHandler(ShaiHulud):
     def validate_model(self):
         raise NotImplementedError
 
+    def set_experiments(self):
+        raise NotImplementedError
+
 
 class KerasModelHandler(BaseModelHandler):
     model_args = [
@@ -96,6 +99,12 @@ class KerasModelHandler(BaseModelHandler):
         "filters",
         "n_features_train",
         "n_features_predict",
+    ]
+    fit_kwargs = [
+        "optimizer",
+        "loss",
+        "batch_size",
+        "weights",
     ]
     model_archs = ["CNN", "LSTM", "UNET", "Transformer", "Dense"]
 
@@ -115,7 +124,11 @@ class KerasModelHandler(BaseModelHandler):
         filters=None,
         n_features_train=None,
         n_features_predict=None,
-        data_manager_name="",
+        optimizer=None,
+        loss=None,
+        batch_size=None,
+        weights=None,
+        datamanager=None,
         keras=True,
         project_manager=None,
         **kwargs,
@@ -132,20 +145,31 @@ class KerasModelHandler(BaseModelHandler):
             Description of the parameter, by default "whatever"
         """
         self.project_manager = project_manager
+        self.datamanager = datamanager
+
         self.configuration_folder = project_manager.model_configuration_folder
 
         self.archs = archs
         self.activation_middle = activation_middle
         self.activation_end = activation_end
+        extra_y_timesteps = max([0, datamanager.commun_steps])
+        y_timesteps = datamanager.Y_timeseries + extra_y_timesteps
 
-        self.X_timeseries = X_timeseries
-        self.Y_timeseries = Y_timeseries
+        self.X_timeseries = X_timeseries or datamanager.X_timeseries
+        self.Y_timeseries = Y_timeseries or y_timesteps
         self.filters = filters
 
-        self.n_features_train = n_features_train
-        self.n_features_predict = n_features_predict
+        self.n_features_train = (
+            n_features_train or datamanager.n_features_train
+        )
+        self.n_features_predict = (
+            n_features_predict or datamanager.n_features_predict
+        )
 
-        self.keras = keras
+        self.optimizer = optimizer
+        self.loss = loss
+        self.batch_size = batch_size
+        self.weights = weights
 
         self.models_confs_list = self.list_models_confs()
         self.models_confs = self.name_models()
@@ -176,6 +200,35 @@ class KerasModelHandler(BaseModelHandler):
             "n_features_train": n_features_train,
         }
         return expand_all_alternatives(parameters_to_list)
+
+    def set_experiments(self, models_names=None):
+        optimizer = self.optimizer or "adam"
+        loss = self.loss or MeanSquaredError()
+        batch_size = self.batch_size or 128
+        weights = self.weights or False
+
+        parameters_to_list = {
+            "optimizer": optimizer,
+            "loss": loss,
+            "batch_size": batch_size,
+            "weights": weights,
+        }
+        experiment_lits = expand_all_alternatives(parameters_to_list)
+        exp_cases = {}
+        for i, mod in enumerate(experiment_lits):
+            if models_names:
+                mod_name = models_names[i]
+            else:
+                opt = mod["optimizer"]
+                los = "".join([f[0] for f in mod["loss"].name.split("_")])
+                bs = str(mod["batch_size"])
+                wt = mod["weights"]
+                mod_name = f"{opt}_{los}_B{bs}_{wt}"
+
+            for model_name in self.models_confs.keys():
+                case_name = f"{model_name}_{mod_name}"
+                exp_cases[case_name] = mod
+        self.exp_cases = exp_cases
 
     def name_models(self, models_names=None):
         named_models = {}
@@ -379,6 +432,7 @@ class StatsModelHandler(BaseModelHandler):
         "trend",
     ]
     model_archs = ["AR", "MA", "ARMA", "ARIMA", "SARIMA"]
+    fit_kwargs = []
 
     def assert_arch_in_class(arch):
         if arch.lower() in [f.lower() for f in StatsModelHandler.model_archs]:
@@ -396,6 +450,7 @@ class StatsModelHandler(BaseModelHandler):
         s=None,
         trend=None,
         project_manager=None,
+        datamanager=None,
         archs=None,
         **kwargs,
     ):
@@ -409,6 +464,7 @@ class StatsModelHandler(BaseModelHandler):
         self.Q = Q
         self.s = s
 
+        self.datamanager = datamanager
         self.project_manager = project_manager
         self.configuration_folder = project_manager.model_configuration_folder
         self.models_confs_list = self.list_models_confs()
@@ -428,10 +484,10 @@ class StatsModelHandler(BaseModelHandler):
         if arch == "ar":
             lags = self.p
             model_args["lags"] = lags
-            model_args["mode_fn"] = AutoReg
+            model_args["model_fn"] = AutoReg
             expanded_models_list = expand_all_alternatives(model_args)
         if arch == "ma":
-            model_args["mode_fn"] = ARIMA
+            model_args["model_fn"] = ARIMA
             model_args["q"] = self.q
             expanded_models_list = expand_all_alternatives(model_args)
             new_expanded_models_list = []
@@ -441,7 +497,7 @@ class StatsModelHandler(BaseModelHandler):
                 new_expanded_models_list.append(case_model)
             expanded_models_list = new_expanded_models_list
         if arch == "arma":
-            model_args["mode_fn"] = ARIMA
+            model_args["model_fn"] = ARIMA
             model_args["q"] = self.q
             model_args["p"] = self.p
             expanded_models_list = expand_all_alternatives(model_args)
@@ -453,7 +509,7 @@ class StatsModelHandler(BaseModelHandler):
                 new_expanded_models_list.append(case_model)
             expanded_models_list = new_expanded_models_list
         if arch == "arima":
-            model_args["mode_fn"] = ARIMA
+            model_args["model_fn"] = ARIMA
             model_args["q"] = self.q
             model_args["p"] = self.p
             model_args["d"] = self.d
@@ -469,7 +525,7 @@ class StatsModelHandler(BaseModelHandler):
             expanded_models_list = new_expanded_models_list
 
         if arch == "sarima":
-            model_args["mode_fn"] = ARIMA
+            model_args["model_fn"] = ARIMA
             model_args["q"] = self.q
             model_args["p"] = self.p
             model_args["d"] = self.d
@@ -495,7 +551,7 @@ class StatsModelHandler(BaseModelHandler):
             expanded_models_list = new_expanded_models_list
 
         if arch == "var model":
-            model_args["mode_fn"] = VAR
+            model_args["model_fn"] = VAR
 
         return expanded_models_list
 
@@ -520,9 +576,20 @@ class StatsModelHandler(BaseModelHandler):
             if model_args.get("lags", None):
                 p = model_args["lags"]
             P, D, Q, s = model_args.get("seasonal_order", (0, 0, 0, 0))
+            trend = model_args.get("trend", "n")
 
-            case_name = f"{model_name}_p{p}_d{d}_q{q}_P{P}_D{D}_Q{Q}_s{s}"
+            case_name = (
+                f"{model_name}_p{p}_d{d}_q{q}_P{P}_D{D}_Q{Q}_s{s}_t{trend}"
+            )
             self.models_confs[case_name] = model_args
+
+    def set_experiments(self, models_names=None):
+        exp_cases = {}
+        fit_args = {}
+        for case_name, case_args in self.models_confs.items():
+            exp_cases[case_name] = {**case_args}
+
+        self.exp_cases = exp_cases
 
     def train_model(
         self,
@@ -538,6 +605,7 @@ class StatsModelHandler(BaseModelHandler):
         **kwargs,
     ):
         train_fn = train_fn or self.train_fn or statsmodel_train_model
+        datamanager = datamanager or self.datamanager
         model_args = {}
         if order:
             model_args["order"] = order
@@ -647,10 +715,8 @@ class ModelHandler(ShaiHulud):
         ) in model_handlers_kwargs.items():
             model_handler_kwargs.update(kwargs_original)
 
-            model_handlers_to_return[
-                model_handler_name
-            ] = ModelHandler(model_backend=model_handler_name,
-                **model_handler_kwargs
+            model_handlers_to_return[model_handler_name] = ModelHandler(
+                model_backend=model_handler_name, **model_handler_kwargs
             )
         return model_handlers_to_return
 
