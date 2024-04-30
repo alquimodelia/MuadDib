@@ -64,7 +64,7 @@ class BaseModelHandler(ShaiHulud):
             self.datamanager.name,
         )
 
-        self.target_variable = target_variable
+        self.target_variable = self.datamanager.target_variable
 
         self.train_fn = train_fn
         self.set_experiments()
@@ -107,6 +107,7 @@ class KerasModelHandler(BaseModelHandler):
         "weights",
     ]
     model_archs = ["CNN", "LSTM", "UNET", "Transformer", "Dense"]
+    class_args = ["epochs", "archs", "callbacks"]
 
     def assert_arch_in_class(arch):
         for ar in [f.lower() for f in KerasModelHandler.model_archs]:
@@ -131,6 +132,8 @@ class KerasModelHandler(BaseModelHandler):
         datamanager=None,
         keras=True,
         project_manager=None,
+        epochs=None,
+        callbacks=None,
         **kwargs,
     ):
         """
@@ -170,6 +173,9 @@ class KerasModelHandler(BaseModelHandler):
         self.loss = loss
         self.batch_size = batch_size
         self.weights = weights
+        self.epochs = epochs
+
+        self.callbacks = callbacks
 
         self.models_confs_list = self.list_models_confs()
         self.models_confs = self.name_models()
@@ -228,6 +234,7 @@ class KerasModelHandler(BaseModelHandler):
             for model_name in self.models_confs.keys():
                 case_name = f"{model_name}_{mod_name}"
                 exp_cases[case_name] = mod
+                exp_cases[case_name]["epochs"] = self.epochs
         self.exp_cases = exp_cases
 
     def name_models(self, models_names=None):
@@ -324,7 +331,7 @@ class KerasModelHandler(BaseModelHandler):
     def train_model(
         self,
         model_case_name,
-        epochs,
+        epochs=None,
         datamanager=None,
         train_fn=None,
         callbacks=None,
@@ -338,6 +345,7 @@ class KerasModelHandler(BaseModelHandler):
             epochs = epochs - last_epoch
         if epochs < 1:
             return
+        callbacks = callbacks or self.callbacks
         if callbacks:
             callbacks = self.set_callbacks(
                 callbacks, freq_saves_folder, last_epoch
@@ -433,6 +441,7 @@ class StatsModelHandler(BaseModelHandler):
     ]
     model_archs = ["AR", "MA", "ARMA", "ARIMA", "SARIMA"]
     fit_kwargs = []
+    class_args = ["archs"]
 
     def assert_arch_in_class(arch):
         if arch.lower() in [f.lower() for f in StatsModelHandler.model_archs]:
@@ -532,6 +541,7 @@ class StatsModelHandler(BaseModelHandler):
             model_args["Q"] = self.Q
             model_args["P"] = self.P
             model_args["D"] = self.D
+            model_args["s"] = self.s
 
             expanded_models_list = expand_all_alternatives(model_args)
             new_expanded_models_list = []
@@ -543,7 +553,7 @@ class StatsModelHandler(BaseModelHandler):
                 Q = case_model.pop("Q", 1) or 1
                 P = case_model.pop("P", 1) or 1
                 D = case_model.pop("D", 1) or 1
-                s = case_model.pop("s", 1) or 1
+                s = case_model.pop("s", 24) or 24
 
                 case_model["seasonal_order"] = (P, D, Q, s)
 
@@ -594,7 +604,6 @@ class StatsModelHandler(BaseModelHandler):
     def train_model(
         self,
         model_case_name,
-        epochs,
         datamanager=None,
         train_fn=None,
         model_fn=None,
@@ -621,7 +630,6 @@ class StatsModelHandler(BaseModelHandler):
         )
         modelfilepath = os.path.join(
             self.work_folder,
-            self.target_variable,
             model_case_name,
             "modelfit.pkl",
         )

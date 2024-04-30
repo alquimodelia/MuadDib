@@ -20,6 +20,10 @@ keywords = ['machine learning', ' framework', ' python', ' data science']
 [tool.poetry.dependencies]
 python = "^3.9"
 cookiecutter = "*"
+tinydb = "*"
+tinydb_serialization = "*"
+statsmodels = "*"
+scikit-learn = "*"
 
 [tool.poetry.group.docs]
 optional = true

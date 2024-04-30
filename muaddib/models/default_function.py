@@ -1,3 +1,8 @@
+import os
+
+import keras
+
+
 def keras_train_model(
     model_obj=None,
     epochs=None,
@@ -56,7 +61,8 @@ def statsmodel_train_model(
     modelfilepath=None,
     **kwargs,
 ):
-    model_fit = model_obj.fit(**training_args)
+    model_fit = model_obj.fit(**kwargs)
+    os.makedirs(os.path.dirname(modelfilepath), exist_ok=True)
     model_fit.save(modelfilepath)
 
     return model_fit

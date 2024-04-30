@@ -888,9 +888,9 @@ class Experiment(SpiceEyes):
                 self.conf.append(case_obj)
                 self.study_cases[case_obj.name] = case_obj
                 if case_obj.name not in TARGET_VARIABLE_CASE_DICT:
-                    TARGET_VARIABLE_CASE_DICT[
-                        case_obj.name
-                    ] = case_obj.conf_file
+                    TARGET_VARIABLE_CASE_DICT[case_obj.name] = (
+                        case_obj.conf_file
+                    )
         write_dict_to_file(
             TARGET_VARIABLE_CASE_DICT, TARGET_VARIABLE_CASE_DICT_PATH
         )
@@ -1313,11 +1313,11 @@ class Experiment(SpiceEyes):
 
                 # figure_name = f"case_results_{COLUMN_TO_SORT_BY}_{name}.png"
 
-                case_results.loc[
-                    case_results["name"] == name, "wtf"
-                ] = best_model_results[
-                    : len(case_results[case_results["name"] == name])
-                ]
+                case_results.loc[case_results["name"] == name, "wtf"] = (
+                    best_model_results[
+                        : len(case_results[case_results["name"] == name])
+                    ]
+                )
 
             folder_figures = self.obj_work_folder.replace(
                 "experiments", "reports"

@@ -206,10 +206,14 @@ class DataHandler(ShaiHulud):
             **kwargs_to_use,
         )
 
+        num_batches = len(data_generator)
+
         X, Y = [], []
-        for x, y in data_generator:
+        for i in range(num_batches):
+            x, y = data_generator[i]
             X.append(x)
             Y.append(y)
+
         X = np.array(X)
         Y = np.array(Y)
         train_len = math.ceil(frac * len(X))

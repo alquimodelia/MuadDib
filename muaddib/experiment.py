@@ -494,10 +494,9 @@ class Case(SpiceEyes):
             if "filepath" in arg_names:
                 callback_args["filepath"] = self.model_keras_path
             if "model_log_filename" in arg_names:
-                callback_args[
-                    "model_log_filename"
-                ] = json_list or self.model_keras_path.replace(
-                    ".keras", ".json"
+                callback_args["model_log_filename"] = (
+                    json_list
+                    or self.model_keras_path.replace(".keras", ".json")
                 )
             if "logs" in arg_names:
                 model_history_filename = (

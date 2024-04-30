@@ -1,6 +1,5 @@
 import os
 
-
 from muaddib.models.model_handler import ModelHandler
 from muaddib.muaddib import ShaiHulud
 
@@ -14,8 +13,6 @@ class ExperimentHandler(ShaiHulud):
         project_manager=None,
         model_handlers=None,
         train_fn=None,
-        epochs=None,
-        callbacks=None,
         validation_fn=None,
         result_validation_fn=None,
         validation_target=None,
@@ -74,13 +71,12 @@ class ExperimentHandler(ShaiHulud):
     def get_model_handler_kwargs(self, kwargs):
         original_kwargs = {**kwargs}
         model_handler_kwargs = {}
-
         for model_handler_name, model_handler in ModelHandler.registry.items():
             for kwarg in kwargs.keys():
                 if (
                     kwarg in model_handler.model_args
                     or kwarg in model_handler.fit_kwargs
-                    or kwarg == "archs"
+                    or kwarg in model_handler.class_args
                 ):
                     if kwarg in original_kwargs:
                         original_kwargs.pop(kwarg)
@@ -116,11 +112,10 @@ class ExperimentHandler(ShaiHulud):
             exp_fit_args = self.model_handlers[model_handler_name].exp_cases[
                 exp
             ]
+            print(exp_fit_args)
             self.model_handlers[model_handler_name].train_model(
                 exp,
-                self.epochs,
-                self.data_manager,
-                callbacks=self.callbacks,
+                datamanager=self.data_manager,
                 **exp_fit_args,
             )
 
