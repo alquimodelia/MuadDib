@@ -80,21 +80,21 @@ def get_keras_predictions(model_path, X, **valdiation_args):
 def get_statsmodel_predictions(model_path, datamanager):
     from statsmodels.tsa.arima.model import ARIMAResults
 
-    x_timesteps = datamanager.x_timesteps
-    y_timesteps = datamanager.y_timesteps
+    x_timesteps = datamanager.X_timeseries
+    y_timesteps = datamanager.Y_timeseries
     datamanager.set_validation_index()
-    validation_start_index = datamanager.validation_index_start
-    validation_end_index = datamanager.validation_index_end
+    validation_start_index = datamanager.validation_index_start + x_timesteps
+    validation_end_index = datamanager.validation_index_end - y_timesteps
 
     trained_model = ARIMAResults.load(model_path)
 
     predictions = []
-    for i in range(validation_start_index, validation_end_index + 1):
-        start_index = validation_start_index + x_timesteps
-        end_index = start_index + y_timesteps
+    for i in range(validation_start_index, validation_end_index, 24):
+        start_index = i + x_timesteps
+        end_index = start_index + y_timesteps - 1
         pred = trained_model.predict(start_index, end_index)
         predictions.append(pred)
-    predictions = np.array(predictions)
+    predictions = np.expand_dims(np.array(predictions), axis=-1)
 
     return predictions
 
@@ -186,74 +186,3 @@ def validate_model(
     )
 
     return predict_score
-
-
-def keras_inference_model(
-    model_path,
-    datamanager=None,
-    model_name=None,
-    skiping_step=24,
-    bench_args=None,
-    valdiation_args=None,
-    benchmark=True,
-    prediction_score_fn=None,
-    num_common=0,
-    epoch=1,
-    **kwargs,
-):
-    valdiation_args = valdiation_args or {}
-    prediction_score_fn = prediction_score_fn or prediction_score
-
-    # The predictions of all epochs
-    prediction_path = os.path.dirname(model_path).replace(
-        "freq_saves", "predictions.npz"
-    )
-    prediction_name = f"prediction_{epoch}"
-    predictions = None
-    predictions_experiment = None
-    benchmark_values = None
-    if os.path.exists(prediction_path):
-        predictions_experiment = np.load(prediction_path)
-        if prediction_name in predictions_experiment.keys():
-            predictions = predictions_experiment[prediction_name]
-        if "benchmark" in predictions_experiment.keys():
-            benchmark_values = predictions_experiment["benchmark"]
-        if "test" in predictions_experiment.keys():
-            truth_data = predictions_experiment["test"]
-
-    if benchmark:
-        if benchmark_values is not None:
-            benchmark = benchmark_values
-            benchmark_values = None  # avoid duplication
-        else:
-            bench_args = bench_args or {}
-            benchmark = datamanager.benchmark_data(**bench_args)
-
-    if predictions is None:
-        X, truth_data, _, _ = datamanager.validation_data(
-            skiping_step=skiping_step, **valdiation_args
-        )
-        keras.backend.clear_session()
-        # Compile is false because we just need to predict.
-        trained_model = keras.models.load_model(model_path, compile=False)
-        predictions = trained_model.predict(X)
-
-        if predictions_experiment is None:
-            prediction_file_dict = {
-                "test": truth_data,
-                "benchmark": benchmark,
-                prediction_name: predictions,
-            }
-        else:
-            prediction_file_dict = dict(predictions_experiment)
-            prediction_file_dict[prediction_name] = predictions
-
-        os.makedirs(os.path.dirname(prediction_path), exist_ok=True)
-        np.savez_compressed(prediction_path, **prediction_file_dict)
-
-
-def statsmodel_inference_model(
-    **kwargs,
-):
-
-    return

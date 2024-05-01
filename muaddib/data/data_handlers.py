@@ -132,9 +132,11 @@ class DataHandler(ShaiHulud):
         return validation_dataframe
 
     def set_validation_index(self):
-        validation_dataframe = self.get_validation_dataframe
+        validation_dataframe = self.get_validation_dataframe()
         self.validation_index_start = validation_dataframe.index.min()
-        self.validation_index_end = validation_dataframe.index.max()
+        self.validation_index_end = self.validation_index_start + len(
+            validation_dataframe
+        )
 
         return
 
