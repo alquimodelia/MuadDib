@@ -90,8 +90,9 @@ class ShaiHulud:
         for kwarg, value in kwargs.items():
             setattr(self, str(kwarg), value)
         # Only setup the experiment if there is
-        if not obj_setup_args.get("previous_experiment", False):
+        if not hasattr(self, "previous_experiment"):
             self.obj_setup(**obj_setup_args)
+        # BUG: mirrow weights serialeries not working with the inner loss functions
         self.save()
 
 

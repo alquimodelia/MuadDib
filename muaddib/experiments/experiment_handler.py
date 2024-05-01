@@ -39,6 +39,8 @@ class ExperimentHandler(ShaiHulud):
                 self.name,
             )
             self.data_manager = data_manager
+            self.validation_target = validation_target
+            self.previous_experiment = previous_experiment
 
             # model_handlers = model_handlers or []
             # if not isinstance(model_handlers, list):
@@ -74,7 +76,8 @@ class ExperimentHandler(ShaiHulud):
         original_kwargs = {**kwargs}
         model_handler_kwargs = {}
         for model_handler_name, model_handler in ModelHandler.registry.items():
-            for kwarg in kwargs.keys():
+            for kwarg, argument in kwargs.items():
+                arg_to_add = argument
                 if (
                     kwarg in model_handler.model_args
                     or kwarg in model_handler.fit_kwargs
@@ -82,16 +85,119 @@ class ExperimentHandler(ShaiHulud):
                 ):
                     if kwarg in original_kwargs:
                         original_kwargs.pop(kwarg)
-                    model_handler_kwargs[kwarg] = kwargs[kwarg]
+
+                    # Check if the argment is already there an add if not.
+                    if kwarg in model_handler_kwargs:
+                        if argument == model_handler_kwargs[kwarg]:
+                            continue
+                        old_arg = model_handler_kwargs[kwarg]
+                        if not isinstance(old_arg, list):
+                            old_arg = [old_arg]
+                        new_arg = argument
+                        if not isinstance(new_arg, list):
+                            new_arg = [new_arg]
+                        for n_arg in new_arg:
+                            if n_arg not in old_arg:
+                                old_arg.append(n_arg)
+                        arg_to_add = old_arg
+                    model_handler_kwargs[kwarg] = arg_to_add
+
+        self.model_handler_kwargs = model_handler_kwargs
+        return original_kwargs
+
+    # def get_model_handler_kwargs(self, kwargs):
+    #     original_kwargs = {**kwargs}
+    #     model_handler_kwargs = {}
+    #     for model_handler_name, model_handler in ModelHandler.registry.items():
+    #         if self.previous_experiment:
+    #             previous_experiment_args = {}
+    #             best_case = self.previous_experiment.best_case
+    #             if model_handler_name==best_case["model_handler_name"]:
+    #                 model_handler_kwargs.update(best_case["model_conf"])
+    #                 model_handler_kwargs.update(best_case["exp_conf"])
+
+    #         for kwarg, argument in kwargs.items():
+    #             arg_to_add = argument
+    #             if not isinstance(arg_to_add, list):
+    #                 arg_to_add=[arg_to_add]
+    #             # Only add archs from the modelhandler
+    #             if kwarg=="archs":
+    #                 usable_archs = []
+    #                 for arch in arg_to_add:
+    #                     if arch.lower() in [f.lower() for f in model_handler.model_archs]:
+    #                         usable_archs.append(arch)
+    #                 if len(usable_archs)==0:
+    #                     continue
+    #                 arg_to_add=usable_archs
+    #             # check if it is already from previous
+    #             if kwarg in model_handler_kwargs:
+    #                 old_arg = model_handler_kwargs[kwarg]
+    #                 if not isinstance(old_arg, list):
+    #                     old_arg=[old_arg]
+    #                 for old in old_arg:
+    #                     if old not in arg_to_add:
+    #                         arg_to_add.append(old)
+    #             # Now add if its an arg from the current handler
+    #             if (
+    #                 kwarg in model_handler.model_args
+    #                 or kwarg in model_handler.fit_kwargs
+    #                 or kwarg in model_handler.class_args
+    #             ):
+    #                 if kwarg in original_kwargs:
+    #                     original_kwargs.pop(kwarg)
+    #                 model_handler_kwargs[kwarg] = arg_to_add
+    #     experiment_model_handler = ModelHandler.create_model_handlers(
+    #         **model_handler_kwargs,
+    #         project_manager=self.project_manager,
+    #         datamanager=self.data_manager,
+    #     )
+    #     self.model_handlers = experiment_model_handler
+    #     return original_kwargs
+
+    def obj_setup(self, model_handler_args=None, previous_experiment=None):
+        model_handler_kwargs = {}
+        for model_handler_name, model_handler in ModelHandler.registry.items():
+            if self.previous_experiment:
+                previous_experiment_args = {}
+                best_case = self.previous_experiment.best_case
+                if model_handler_name == best_case["model_handler_name"]:
+                    model_handler_kwargs.update(best_case["model_conf"])
+                    model_handler_kwargs.update(best_case["exp_conf"])
+
+                for kwarg, argument in self.model_handler_kwargs.items():
+                    arg_to_add = argument
+                    if (
+                        kwarg in model_handler.model_args
+                        or kwarg in model_handler.fit_kwargs
+                        or kwarg in model_handler.class_args
+                    ):
+
+                        # Check if the argment is already there an add if not.
+                        if kwarg in model_handler_kwargs:
+                            if argument == model_handler_kwargs[kwarg]:
+                                continue
+                            old_arg = model_handler_kwargs[kwarg]
+                            if not isinstance(old_arg, list):
+                                old_arg = [old_arg]
+                            new_arg = argument
+                            if not isinstance(new_arg, list):
+                                new_arg = [new_arg]
+                            for n_arg in new_arg:
+                                if n_arg not in old_arg:
+                                    old_arg.append(n_arg)
+                            arg_to_add = old_arg
+                        model_handler_kwargs[kwarg] = arg_to_add
+            else:
+                model_handler_kwargs = self.model_handler_kwargs
+
         experiment_model_handler = ModelHandler.create_model_handlers(
+            name=self.name,
             **model_handler_kwargs,
             project_manager=self.project_manager,
             datamanager=self.data_manager,
         )
         self.model_handlers = experiment_model_handler
-        return original_kwargs
 
-    def obj_setup(self, model_handler_args=None, previous_experiment=None):
         experiments = {}
         for key, val in self.model_handlers.items():
             for case_name in val.exp_cases.keys():
@@ -99,8 +205,6 @@ class ExperimentHandler(ShaiHulud):
                     "model_handler_name": key,
                 }
         self.experiments = experiments
-
-        self.save()
 
     def train_experiment(self):
         if not getattr(self, "experiments", False):
@@ -127,7 +231,7 @@ class ExperimentHandler(ShaiHulud):
             self.work_folder, "experiment_score.csv"
         )
         if os.path.exists(exp_results_path):
-            exp_results = pd.read_csv(exp_results_path, index_col=0)
+            exp_results = pd.read_csv(exp_results_path)
         else:
             exp_results = pd.DataFrame()
         for exp in self.experiments.keys():
@@ -155,6 +259,34 @@ class ExperimentHandler(ShaiHulud):
         exp_results = exp_results.reset_index(drop=True)
         exp_results.to_csv(exp_results_path, index=False)
         return exp_results
+
+    def validate_results(self, exp_results, validation_target=None):
+        validation_target = validation_target or self.validation_target
+        # path = "/home/joao/Documentos/renewable-penetration/models/trained_models/UpwardUsedSecondaryReserveEnergy/updata/VanillaCNN_relu_relu_X168_Y24_f16_T18_P1_adam_mse_B128_False/predictions_score.csv"
+        # exp_results = pd.read_csv(path)
+        # target_variable = "rmse"
+        best_ind = exp_results[validation_target].nsmallest(1).index
+        best_name = exp_results.loc[best_ind].name.item()
+        model_handler_name = self.experiments[best_name]["model_handler_name"]
+        # best_name=self.best_case
+        for mod_conf in self.model_handlers[
+            model_handler_name
+        ].models_confs.keys():
+            # The model_conf_name is part of the best_name, as it is made my model name and fit args name
+            if mod_conf in best_name:
+                model_conf_name = mod_conf
+                model_conf = self.model_handlers[
+                    model_handler_name
+                ].models_confs[model_conf_name]
+        self.best_case = {
+            "name": best_name,
+            "model_handler_name": model_handler_name,
+            "model_conf": model_conf,
+            "exp_conf": self.model_handlers[model_handler_name].exp_cases[
+                best_name
+            ],
+        }
+        # self.model_handlers[self.experiments[best_name]["model_handler_name"]].exp_cases[best_name]
 
 
 # class KerasExperiment(ShaiHulud):

@@ -272,6 +272,14 @@ class KerasModelHandler(BaseModelHandler):
                 default_muaddib_model_builder(mod, filepath=file_conf_path)
         return named_models
 
+    def conf_to_build_args(self, conf):
+        build_args = dict()
+        for arg in self.model_args + self.fit_kwargs + self.class_args:
+            if arg in conf:
+                build_args[arg] = conf[arg]
+
+        return build_args
+
     def get_model_obj(self, model_case_name, loss=None):
         trained_models = list_folders(self.work_folder)
         model_conf_name = [
@@ -627,6 +635,30 @@ class StatsModelHandler(BaseModelHandler):
             )
             self.models_confs[case_name] = model_args
 
+    def conf_to_build_args(self, conf):
+        build_args = dict()
+        build_args["archs"] = conf["model_name"]
+        for arg in self.model_args + self.fit_kwargs + self.class_args:
+            if arg in conf:
+                build_args[arg] = conf[arg]
+        for arg in conf.keys():
+            if arg not in build_args:
+                if arg == "lags":
+                    build_args["p"] = conf[arg]
+                if arg == "order":
+                    p, d, q = conf[arg]
+                    build_args["p"] = p
+                    build_args["q"] = q
+                    build_args["d"] = d
+                if arg == "seasonal_order":
+                    P, D, Q, s = conf[arg]
+                    build_args["P"] = P
+                    build_args["Q"] = Q
+                    build_args["D"] = D
+                    build_args["s"] = s
+
+        return build_args
+
     def set_experiments(self, models_names=None):
         exp_cases = {}
         fit_args = {}
@@ -769,6 +801,7 @@ class ModelHandler(ShaiHulud):
     def create_model_handlers(cls, **kwargs):
         model_archs_hander = dict()
         archs = kwargs.pop("archs", [])
+        name = kwargs.pop("name", "exp1")
         if not isinstance(archs, list):
             archs = [archs]
         for (
@@ -804,9 +837,11 @@ class ModelHandler(ShaiHulud):
             model_handler_kwargs,
         ) in model_handlers_kwargs.items():
             model_handler_kwargs.update(kwargs_original)
-
+            handler_name = f"{name}_{model_handler_name}_handler"
             model_handlers_to_return[model_handler_name] = ModelHandler(
-                model_backend=model_handler_name, **model_handler_kwargs
+                name=handler_name,
+                model_backend=model_handler_name,
+                **model_handler_kwargs,
             )
         return model_handlers_to_return
 
