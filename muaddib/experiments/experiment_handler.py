@@ -184,6 +184,10 @@ class ExperimentHandler(ShaiHulud):
                                 new_arg = [new_arg]
                             for n_arg in new_arg:
                                 if n_arg not in old_arg:
+                                    # Avoid loss duplication, BUG: but this migh happen with other functions
+                                    if kwarg=="loss":
+                                        if n_arg.name in [f.name for f in old_arg]:
+                                            continue
                                     old_arg.append(n_arg)
                             arg_to_add = old_arg
                         model_handler_kwargs[kwarg] = arg_to_add
@@ -286,6 +290,7 @@ class ExperimentHandler(ShaiHulud):
                 best_name
             ],
         }
+        self.save()
         # self.model_handlers[self.experiments[best_name]["model_handler_name"]].exp_cases[best_name]
 
 
