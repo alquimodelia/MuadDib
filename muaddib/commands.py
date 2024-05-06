@@ -98,6 +98,22 @@ def reset_configurations(args):
         os.remove(cf)
 
 
+def delete_configurations(args):
+    startup()
+
+    EXPERIMENT_FOLDER = os.getenv("EXPERIMENT_FOLDER", None)
+    qry = f"{EXPERIMENT_FOLDER}/**/**_conf.json"
+    # qry = f"{EXPERIMENT_FOLDER}/**/**experiment_conf.json"
+    list_of_all_conf_file = glob.glob(qry, recursive=True)
+    # list_of_all_conf_file = [f for f in list_of_all_conf_file if "case_conf" not in f]
+    for cf in list_of_all_conf_file:
+        os.remove(cf)
+    qry = f"{EXPERIMENT_FOLDER}/**/**predict_score.json"
+    list_of_all_conf_file = glob.glob(qry, recursive=True)
+    for cf in list_of_all_conf_file:
+        os.remove(cf)
+
+
 def process_data(args):
     startup()
     global ALL_DATA_MANAGERS

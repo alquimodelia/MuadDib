@@ -116,7 +116,7 @@ class KerasModelHandler(BaseModelHandler):
         "weights",
     ]
     model_archs = ["CNN", "LSTM", "UNET", "Transformer", "Dense"]
-    class_args = ["epochs", "archs", "callbacks"]
+    class_args = ["epochs", "archs", "callbacks", "metric_scores_fn"]
 
     def assert_arch_in_class(arch):
         for ar in [f.lower() for f in KerasModelHandler.model_archs]:
@@ -483,7 +483,7 @@ class StatsModelHandler(BaseModelHandler):
     ]
     model_archs = ["AR", "MA", "ARMA", "ARIMA", "SARIMA"]
     fit_kwargs = []
-    class_args = ["archs"]
+    class_args = ["archs", "metric_scores_fn"]
 
     def assert_arch_in_class(arch):
         if arch.lower() in [f.lower() for f in StatsModelHandler.model_archs]:

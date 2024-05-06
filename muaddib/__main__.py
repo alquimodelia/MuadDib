@@ -95,7 +95,10 @@ def get_arg_parser():
     subparsers.add_parser("plots", help="plots help")
     subparsers.add_parser("run", help="run help")
 
-    subparsers.add_parser("reset", help="start help")
+    parser_reset = subparsers.add_parser("reset", help="start help")
+    parser_reset.add_argument(
+        "--conf", help="Configuration to delete"
+    )  # TODO: change name
 
     return parser
 

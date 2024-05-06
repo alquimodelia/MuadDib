@@ -2,6 +2,7 @@ import os
 
 import pandas as pd
 
+from muaddib.experiments.default_functions import make_experiment_plot
 from muaddib.models.model_handler import ModelHandler
 from muaddib.muaddib import ShaiHulud
 
@@ -41,6 +42,7 @@ class ExperimentHandler(ShaiHulud):
             self.data_manager = data_manager
             self.validation_target = validation_target
             self.previous_experiment = previous_experiment
+            self.write_report_fn = write_report_fn or make_experiment_plot
 
             # model_handlers = model_handlers or []
             # if not isinstance(model_handlers, list):
@@ -185,8 +187,10 @@ class ExperimentHandler(ShaiHulud):
                             for n_arg in new_arg:
                                 if n_arg not in old_arg:
                                     # Avoid loss duplication, BUG: but this migh happen with other functions
-                                    if kwarg=="loss":
-                                        if n_arg.name in [f.name for f in old_arg]:
+                                    if kwarg == "loss":
+                                        if n_arg.name in [
+                                            f.name for f in old_arg
+                                        ]:
                                             continue
                                     old_arg.append(n_arg)
                             arg_to_add = old_arg
@@ -264,12 +268,14 @@ class ExperimentHandler(ShaiHulud):
         exp_results.to_csv(exp_results_path, index=False)
         return exp_results
 
-    def validate_results(self, exp_results, validation_target=None):
+    def validate_results(
+        self, exp_results, validation_target=None, biggest=True
+    ):
         validation_target = validation_target or self.validation_target
-        # path = "/home/joao/Documentos/renewable-penetration/models/trained_models/UpwardUsedSecondaryReserveEnergy/updata/VanillaCNN_relu_relu_X168_Y24_f16_T18_P1_adam_mse_B128_False/predictions_score.csv"
-        # exp_results = pd.read_csv(path)
-        # target_variable = "rmse"
-        best_ind = exp_results[validation_target].nsmallest(1).index
+        if biggest:
+            best_ind = exp_results[validation_target].nlargest(1).index
+        else:
+            best_ind = exp_results[validation_target].nsmallest(1).index
         best_name = exp_results.loc[best_ind].name.item()
         model_handler_name = self.experiments[best_name]["model_handler_name"]
         # best_name=self.best_case
@@ -291,7 +297,27 @@ class ExperimentHandler(ShaiHulud):
             ],
         }
         self.save()
-        # self.model_handlers[self.experiments[best_name]["model_handler_name"]].exp_cases[best_name]
+
+    def write_report(self, exp_results=None, **kwargs):
+        if exp_results is None:
+            exp_results = self.validate_experiment()
+
+        folder_figures = kwargs.pop(
+            "folder_figures",
+            self.work_folder.replace("/experiment/", "/reports/"),
+        )
+
+        # limit_by = kwargs.pop("limit_by", "benchmark")
+        # metrics_to_check = kwargs.pop("metrics_to_check", None)
+        os.makedirs(folder_figures, exist_ok=True)
+        # exp_results = exp_results[
+        #     exp_results["name"].isin(self.experiments.keys())
+        # ]
+        self.write_report_fn(
+            exp_results,
+            folder_figures=folder_figures,
+            **kwargs,
+        )
 
 
 # class KerasExperiment(ShaiHulud):
