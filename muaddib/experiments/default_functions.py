@@ -3,7 +3,9 @@ import os
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
+plt.ioff()
 # TODO make 3D plot on experiment with z - metric, x,y epoch and argumet
 # on stats models epoch is always one, so drop that dim. but the general case has to be able to do this
 # if arg is linear then its planes, if not, maybe a 2D is good enough
@@ -80,14 +82,14 @@ def make_all_metric_plot(
     for i, met in enumerate(metrics_to_check):
         ylimit = None
         ax = np.array(axes).flatten()[i]
-        # Save the list of lines before plotting
-        lines_before = ax.get_lines()
+        # # Save the list of lines before plotting
+        # lines_before = ax.get_lines()
 
         # Get the label for the metric
         label = scores_df.loc[scores_df[met].idxmax(), column_to_group]
 
         # Get the color for the label
-        color = label_color_mapping[label]
+        # color = label_color_mapping[label]
         if shadow_plot:
             scores_df.groupby(column_to_group).max()[met].plot.bar(ax=ax)
         else:
@@ -222,7 +224,7 @@ def make_metric_plot(
         )[metric].plot(ax=ax)
         do_the_shadow = True
     if benchmark_metric:
-        line = ax.axhline(
+        ax.axhline(
             y=scores_df[benchmark_metric].iloc[0], color="r", linestyle="--"
         )
 

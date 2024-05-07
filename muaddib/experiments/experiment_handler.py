@@ -1,10 +1,12 @@
 import os
 
+import numpy as np
 import pandas as pd
 
 from muaddib.experiments.default_functions import make_experiment_plot
 from muaddib.models.model_handler import ModelHandler
 from muaddib.muaddib import ShaiHulud
+from muaddib.shaihulud_utils import AdvanceLossHandler
 
 
 class ExperimentHandler(ShaiHulud):
@@ -43,6 +45,7 @@ class ExperimentHandler(ShaiHulud):
             self.validation_target = validation_target
             self.previous_experiment = previous_experiment
             self.write_report_fn = write_report_fn or make_experiment_plot
+            self.args_in_exp = []
 
             # model_handlers = model_handlers or []
             # if not isinstance(model_handlers, list):
@@ -85,6 +88,8 @@ class ExperimentHandler(ShaiHulud):
                     or kwarg in model_handler.fit_kwargs
                     or kwarg in model_handler.class_args
                 ):
+                    if kwarg in model_handler.model_args:
+                        self.args_in_exp.append(kwarg)
                     if kwarg in original_kwargs:
                         original_kwargs.pop(kwarg)
 
@@ -160,7 +165,6 @@ class ExperimentHandler(ShaiHulud):
         model_handler_kwargs = {}
         for model_handler_name, model_handler in ModelHandler.registry.items():
             if self.previous_experiment:
-                previous_experiment_args = {}
                 best_case = self.previous_experiment.best_case
                 if model_handler_name == best_case["model_handler_name"]:
                     model_handler_kwargs.update(best_case["model_conf"])
@@ -182,6 +186,13 @@ class ExperimentHandler(ShaiHulud):
                             if not isinstance(old_arg, list):
                                 old_arg = [old_arg]
                             new_arg = argument
+                            if isinstance(new_arg, AdvanceLossHandler):
+                                new_arg.set_previous_loss(
+                                    self.previous_experiment.best_case[
+                                        "exp_conf"
+                                    ]["loss"]
+                                )
+                                new_arg = [f for f in new_arg]
                             if not isinstance(new_arg, list):
                                 new_arg = [new_arg]
                             for n_arg in new_arg:
@@ -243,6 +254,7 @@ class ExperimentHandler(ShaiHulud):
         else:
             exp_results = pd.DataFrame()
         for exp in self.experiments.keys():
+            # Check for model inference results and does the inference if not done
             if "name" in exp_results:
                 saved_exp_score = exp_results[exp_results["name"] == exp]
                 num_exps = len(saved_exp_score)
@@ -268,15 +280,69 @@ class ExperimentHandler(ShaiHulud):
         exp_results.to_csv(exp_results_path, index=False)
         return exp_results
 
+    def create_experiment_validation_data(self, exp_results, biggest=True):
+        exp_prediction_validation_path = os.path.join(
+            self.work_folder,
+            f"prediction_validation_{self.validation_target}.npz",
+        )
+        if os.path.exists(exp_prediction_validation_path):
+            exp_prediction_validation = dict(
+                np.load(exp_prediction_validation_path)
+            )
+        else:
+            exp_prediction_validation = {}
+        for exp in self.experiments.keys():
+            # Check for model inference results and does the inference if not done
+            if exp in exp_prediction_validation:
+                continue
+            else:
+                model_handler_name = self.experiments[exp][
+                    "model_handler_name"
+                ]
+                case_result = exp_results[exp_results["name"] == exp]
+                if biggest:
+                    best_ind = (
+                        case_result[self.validation_target].nlargest(1).index
+                    )
+                else:
+                    best_ind = (
+                        case_result[self.validation_target].nsmallest(1).index
+                    )
+                best_epoch = int(case_result.loc[best_ind].epoch.item())
+
+                # Check the npz file created for model case and add to experiment npz
+                exp_npz_file_path = os.path.join(
+                    self.model_handlers[model_handler_name].work_folder,
+                    exp,
+                    "predictions.npz",
+                )
+                exp_case_validation = dict(np.load(exp_npz_file_path))
+                for key, arr in exp_case_validation.items():
+                    if "prediction" not in key:
+                        if key not in exp_prediction_validation:
+                            exp_prediction_validation[key] = arr
+                    else:
+                        epoch = int(key.replace("prediction_", ""))
+                        if best_epoch == epoch:
+                            exp_prediction_validation[exp] = arr
+
+        np.savez_compressed(
+            exp_prediction_validation_path, **exp_prediction_validation
+        )
+
     def validate_results(
         self, exp_results, validation_target=None, biggest=True
     ):
         validation_target = validation_target or self.validation_target
+        exp_results = exp_results[
+            exp_results["name"].isin(self.experiments.keys())
+        ]
         if biggest:
             best_ind = exp_results[validation_target].nlargest(1).index
         else:
             best_ind = exp_results[validation_target].nsmallest(1).index
         best_name = exp_results.loc[best_ind].name.item()
+        best_epoch = exp_results.loc[best_ind].epoch.item()
         model_handler_name = self.experiments[best_name]["model_handler_name"]
         # best_name=self.best_case
         for mod_conf in self.model_handlers[
@@ -295,7 +361,9 @@ class ExperimentHandler(ShaiHulud):
             "exp_conf": self.model_handlers[model_handler_name].exp_cases[
                 best_name
             ],
+            "epoch": best_epoch,
         }
+        self.create_experiment_validation_data(exp_results, biggest=biggest)
         self.save()
 
     def write_report(self, exp_results=None, **kwargs):
