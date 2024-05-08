@@ -33,10 +33,17 @@ def keras_train_model(
     }
 
     if weights:
-        if weights == "mean":
+        if isinstance(weights, bool):
+            # It defaults to more weight on last batch, good for timeseries
+            weights = ""
+        elif isinstance(weights, str):
+            weights = weights.lower()
+
+        if "mean" in weights:
             sample_weights = np.abs(np.array(Y) - datamanager.y_mean)
         else:
             sample_weights = np.arange(len(Y)) + 1
+
         if isinstance(weights, str):
             if "squared" in weights.lower():
                 sample_weights = sample_weights**2

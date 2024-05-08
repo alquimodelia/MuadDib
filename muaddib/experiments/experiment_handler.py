@@ -387,6 +387,23 @@ class ExperimentHandler(ShaiHulud):
             **kwargs,
         )
 
+    def run_experiment(
+        self,
+        train_args=None,
+        validate_experiment_args=None,
+        validate_results_args=None,
+        write_report_args=None,
+    ):
+        train_args = train_args or {}
+        validate_experiment_args = validate_experiment_args or {}
+        validate_results_args = validate_results_args or {}
+        write_report_args = write_report_args or {}
+
+        self.train_experiment(**train_args)
+        results = self.validate_experiment(**validate_experiment_args)
+        self.validate_results(results, **validate_results_args)
+        self.write_report(results, **write_report_args)
+
 
 # class KerasExperiment(ShaiHulud):
 #     def __init__(

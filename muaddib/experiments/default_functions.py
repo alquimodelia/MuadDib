@@ -91,7 +91,19 @@ def make_all_metric_plot(
         # Get the color for the label
         # color = label_color_mapping[label]
         if shadow_plot:
-            scores_df.groupby(column_to_group).max()[met].plot.bar(ax=ax)
+            if met in [
+                "rmse",
+                "abs error",
+                "alloc missing",
+                "alloc surplus",
+                "benchmark abs error",
+                "benchmark rmse",
+                "benchmark alloc missing",
+                "benchmark alloc surplus",
+            ]:
+                scores_df.groupby(column_to_group).min()[met].plot.bar(ax=ax)
+            else:
+                scores_df.groupby(column_to_group).max()[met].plot.bar(ax=ax)
         else:
             scores_df.set_index(column_to_index).sort_index().groupby(
                 column_to_group
@@ -217,7 +229,19 @@ def make_metric_plot(
         shadow_plot
     ):  # If epochs is not a thing, or if you want the "shadow" on the epoch axis
         # scores_df.set_index(column_to_group)[metric].plot.bar(ax=ax)
-        scores_df.groupby(column_to_group).max()[metric].plot.bar(ax=ax)
+        if metric in [
+            "rmse",
+            "abs error",
+            "alloc missing",
+            "alloc surplus",
+            "benchmark abs error",
+            "benchmark rmse",
+            "benchmark alloc missing",
+            "benchmark alloc surplus",
+        ]:
+            scores_df.groupby(column_to_group).min()[metric].plot.bar(ax=ax)
+        else:
+            scores_df.groupby(column_to_group).max()[metric].plot.bar(ax=ax)
     else:
         scores_df.set_index(column_to_index).sort_index().groupby(
             column_to_group
