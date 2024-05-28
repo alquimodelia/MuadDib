@@ -39,9 +39,11 @@ def keras_train_model(
         elif isinstance(weights, str):
             weights = weights.lower()
 
+        sam = False
         if "mean" in weights:
             sample_weights = np.abs(np.array(Y) - datamanager.y_mean)
         else:
+            sam = True
             sample_weights = np.arange(len(Y)) + 1
 
         if isinstance(weights, str):
@@ -54,8 +56,9 @@ def keras_train_model(
             if "norm" in weights.lower():
                 sample_weights = sample_weights / np.max(sample_weights)
 
-        sam = sample_weights.reshape(Y.shape[0], 1, 1)
-        sample_weights = np.broadcast_to(sam, Y.shape)
+        if sam:
+            sam = sample_weights.reshape(Y.shape[0], 1, 1)
+            sample_weights = np.broadcast_to(sam, Y.shape)
         # sample_weights = sample_weights.flatten()
         fit_args.update({"sample_weight": sample_weights})
 

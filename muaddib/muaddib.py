@@ -34,6 +34,7 @@ class ShaiHulud:
         p1 : str, optional
             Description of the parameter, by default "whatever"
         """
+        # TODO: refactor whole read/write pipeline
         self.work_folder = work_folder or str(pathlib.Path("").resolve())
         conf_file = getattr(self, "conf_file", None)
         self.conf_file = conf_file

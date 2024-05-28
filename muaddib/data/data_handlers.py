@@ -6,7 +6,17 @@ import keras
 import numpy as np
 import pandas as pd
 
+from muaddib.data.tools import (
+    get_d_suggestion,
+    get_p_suggestion,
+    get_q_suggestion,
+)
 from muaddib.muaddib import ShaiHulud
+
+# TODO: make variables for suggestion on ARIMA stuff, and other
+# sugesttion other than those:
+# mean, max, min, std
+# TODO: other than the shilud file itself, make a json file with the propriesties to load this stuff
 
 
 # The data handle is quite good already
@@ -68,6 +78,9 @@ class DataHandler(ShaiHulud):
         self.name = name or f"datahandle_{target_variable}"
 
         self.work_folder = project_manager.data_folder
+        self.conf_file = os.path.join(
+            self.work_folder, f"{self.name}_conf.json"
+        )
 
         self.name = name
         self.raw_data_folder = os.path.join(self.work_folder, "raw")
@@ -104,6 +117,24 @@ class DataHandler(ShaiHulud):
             obj_type="datahandler", work_folder=self.work_folder, **kwargs
         )
 
+    def setup_data_properties(self, target_series):
+        self.y_mean = (
+            getattr(self, "y_mean", None) or target_series.mean().item()
+        )
+        self.y_max = getattr(self, "y_max", None) or target_series.max().item()
+        self.y_min = getattr(self, "y_min", None) or target_series.min().item()
+        self.y_std = getattr(self, "y_std", None) or target_series.std().item()
+
+        self.suggested_p = getattr(
+            self, "suggested_p", None
+        ) or get_p_suggestion(target_series, number_maximas_to_study=10)
+        self.suggested_q = getattr(
+            self, "suggested_q", None
+        ) or get_q_suggestion(target_series, number_maximas_to_study=10)
+        self.suggested_d = getattr(
+            self, "suggested_d", None
+        ) or get_d_suggestion(target_series)
+
     def obj_setup(self):
         self.processed_data_path = os.path.join(
             self.processed_data_folder, self.dataset_file_name
@@ -114,7 +145,7 @@ class DataHandler(ShaiHulud):
             self.process_data()
 
         dataframe = self.read_data()
-        self.y_mean = dataframe[self.columns_Y].mean().item()
+        target_series = dataframe[self.columns_Y]
         self.n_features_train = len(
             dataframe.drop(self.datetime_col, axis=1).columns
         )
@@ -124,6 +155,8 @@ class DataHandler(ShaiHulud):
             from alquitable.generator import DataGenerator
 
             self.keras_sequence_cls = DataGenerator
+        print(self.__dict__)
+        self.setup_data_properties(target_series)
 
     def get_validation_dataframe(self):
         validation_dataframe = self.validation_fn(

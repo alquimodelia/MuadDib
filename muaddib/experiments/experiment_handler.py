@@ -24,6 +24,7 @@ class ExperimentHandler(ShaiHulud):
         write_report_fn=None,
         previous_experiment=None,
         final_experiment=False,
+        use_suggestions=True,
         **kwargs,
     ):
         conf_file = kwargs.get("conf_file", None)
@@ -45,7 +46,9 @@ class ExperimentHandler(ShaiHulud):
             self.validation_target = validation_target
             self.previous_experiment = previous_experiment
             self.write_report_fn = write_report_fn or make_experiment_plot
+            self.final_experiment = final_experiment
             self.args_in_exp = []
+            self.use_suggestions = use_suggestions
 
             # model_handlers = model_handlers or []
             # if not isinstance(model_handlers, list):
@@ -82,6 +85,23 @@ class ExperimentHandler(ShaiHulud):
         model_handler_kwargs = {}
         for model_handler_name, model_handler in ModelHandler.registry.items():
             for kwarg, argument in kwargs.items():
+                if self.use_suggestions is not None:
+                    suggetion_name = f"suggested_{kwarg}"
+                    suggestion_arg = getattr(
+                        self.data_manager, suggetion_name, None
+                    )
+                    if suggestion_arg is not None:
+                        # TODO: make a forcing list function
+                        if not isinstance(suggestion_arg, list):
+                            suggestion_arg = list(set([suggestion_arg]))
+                            sug_size = len(suggestion_arg)
+                            if isinstance(self.use_suggestions, int):
+                                sug_size = self.use_suggestions
+                            suggestion_arg = suggestion_arg[:sug_size]
+                        if not isinstance(argument, list):
+                            argument = [argument]
+                        argument = argument + suggestion_arg
+                        argument = list(set(argument))
                 arg_to_add = argument
                 if (
                     kwarg in model_handler.model_args
@@ -757,54 +777,6 @@ class ExperimentHandler(ShaiHulud):
 #             **kwargs,
 #         )
 #         # TODO: write validation vs best model (year, month, day : worst and best)
-
-
-# class StatsExperiment(BaseExperiment):
-#     pass
-
-
-# class ExperimentHandler(ShaiHulud):
-#     registry = dict()
-
-#     def __init__(self):
-#         pass
-
-#     def __new__(cls, model_backend: str, **kwargs):
-#         # Dynamically create an instance of the specified model class
-#         model_backend = model_backend.lower()
-#         exphandler_class = ExperimentHandler.registry[model_backend]
-#         instance = super().__new__(exphandler_class)
-#         # Inspect the __init__ method of the model class to get its parameters
-#         init_params = inspect.signature(cls.__init__).parameters
-#         # Separate kwargs based on the parameters expected by the model's __init__
-#         modelhandler_kwargs = {
-#             k: v for k, v in kwargs.items() if k in init_params
-#         }
-#         modelbackend_kwargs = {
-#             k: v for k, v in kwargs.items() if k not in init_params
-#         }
-
-#         for name, method in cls.__dict__.items():
-#             if "__" in name:
-#                 continue
-#             if callable(method) and hasattr(instance, name):
-#                 instance.__dict__[name] = method.__get__(instance, cls)
-
-#         cls.__init__(instance, **modelhandler_kwargs)
-#         instance.__init__(**modelbackend_kwargs)
-
-#         return instance
-
-#     @staticmethod
-#     def register(constructor):
-#         # TODO: only register if its a BaseModel subclass
-#         ExperimentHandler.registry[
-#             constructor.__name__.lower().replace("handler", "")
-#         ] = constructor
-
-
-# ExperimentHandler.register(KerasExperiment)
-# ExperimentHandler.register(StatsExperiment)
 
 
 def ExperimentFactory(
