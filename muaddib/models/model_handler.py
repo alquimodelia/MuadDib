@@ -42,6 +42,18 @@ def default_muaddib_model_builder(params, filepath=None):
 
 class BaseModelHandler(ShaiHulud):
     register = set()
+    listing_conf_properties = ["exp_cases", "models_confs"]
+    single_conf_properties = [
+        "project_manager",
+        "datamanager",
+        "epochs",
+        "callbacks",
+        "metric_scores_fn",
+        "train_fn",
+        "validation_target",
+        "validation_fn",
+        "inference_fn",
+    ]
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -699,6 +711,7 @@ class StatsModelHandler(BaseModelHandler):
             model_case_name,
             "modelfit.pkl",
         )
+        os.makedirs(os.path.dirname(modelfilepath), exist_ok=True)
         if not os.path.exists(modelfilepath):
             train_fn(model_obj=model_obj, modelfilepath=modelfilepath)
 

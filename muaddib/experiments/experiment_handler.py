@@ -10,6 +10,18 @@ from muaddib.shaihulud_utils import AdvanceLossHandler
 
 
 class ExperimentHandler(ShaiHulud):
+    listing_conf_properties = ["model_handlers", "experiments"]
+    single_conf_properties = [
+        "project_manager",
+        "target_variable",
+        "data_manager",
+        "callbacks",
+        "metric_scores_fn",
+        "validation_target",
+        "result_validation_fn",
+        "write_report_fn",
+    ]
+
     def __init__(
         self,
         name=None,
@@ -85,7 +97,7 @@ class ExperimentHandler(ShaiHulud):
         model_handler_kwargs = {}
         for model_handler_name, model_handler in ModelHandler.registry.items():
             for kwarg, argument in kwargs.items():
-                if self.use_suggestions is not None:
+                if self.use_suggestions is not False:
                     suggetion_name = f"suggested_{kwarg}"
                     suggestion_arg = getattr(
                         self.data_manager, suggetion_name, None
@@ -248,6 +260,8 @@ class ExperimentHandler(ShaiHulud):
     def train_experiment(self):
         if not getattr(self, "experiments", False):
             self.obj_setup()
+        print("----------------------------------------------------")
+        print(f"Training {self.name}")
         for exp, exp_args in self.experiments.items():
             exp_fit_args = {**exp_args}
             # TODO: clean
@@ -258,12 +272,14 @@ class ExperimentHandler(ShaiHulud):
             exp_fit_args = self.model_handlers[model_handler_name].exp_cases[
                 exp
             ]
-
+            print(f"Training {exp}")
             self.model_handlers[model_handler_name].train_model(
                 exp,
                 datamanager=self.data_manager,
                 **exp_fit_args,
             )
+            print("****************************************************")
+        print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
 
     def validate_experiment(self, **kwargs):
         exp_results_path = os.path.join(
@@ -779,28 +795,90 @@ class ExperimentHandler(ShaiHulud):
 #         # TODO: write validation vs best model (year, month, day : worst and best)
 
 
-def ExperimentFactory(
-    data_handlers=None,
-    target_variables=None,
-    previous_experiment_dict=None,
-    **kwargs,
-):
-    previous_experiment_dict = previous_experiment_dict or {}
-    experiment_dict = {}
-    # Make it so that it allows for diff variables on multiplr targ exp
-    for target_project in data_handlers.keys():
-        data_manager = data_handlers[target_project]
-        target_variable = data_manager.target_variable
-        previous_experiment = previous_experiment_dict.get(
-            target_project, None
-        )
-        experiment_handles = ExperimentHandler(
-            target_variable=target_variable,
-            data_manager=data_manager,
-            previous_experiment=previous_experiment,
-            **kwargs,
-        )
+# def ExperimentFactory(
+#     data_handlers=None,
+#     target_variables=None,
+#     previous_experiment_dict=None,
+#     **kwargs,
+# ):
+#     previous_experiment_dict = previous_experiment_dict or {}
+#     experiment_dict = {}
+#     # Make it so that it allows for diff variables on multiplr targ exp
+#     for target_project in data_handlers.keys():
+#         data_manager = data_handlers[target_project]
+#         target_variable = data_manager.target_variable
+#         previous_experiment = previous_experiment_dict.get(
+#             target_project, None
+#         )
+#         experiment_handles = ExperimentHandler(
+#             target_variable=target_variable,
+#             data_manager=data_manager,
+#             previous_experiment=previous_experiment,
+#             **kwargs,
+#         )
 
-        experiment_dict[target_project] = experiment_handles
+#         experiment_dict[target_project] = experiment_handles
 
-    return experiment_dict
+#     return experiment_dict
+
+
+class ExperimentFactory:
+    def __init__(
+        self,
+        data_handlers=None,
+        target_variables=None,
+        previous_experiment_dict=None,
+        new_obj=True,
+        **kwargs,
+    ):
+        previous_experiment_dict = previous_experiment_dict or {}
+        experiment_dict = {}
+        if new_obj:
+            # Make it so that it allows for diff variables on multiplr targ exp
+            for target_project in data_handlers.keys():
+                data_manager = data_handlers[target_project]
+                target_variable = data_manager.target_variable
+                previous_experiment = previous_experiment_dict.get(
+                    target_project, None
+                )
+                experiment_handles = ExperimentHandler(
+                    target_variable=target_variable,
+                    data_manager=data_manager,
+                    previous_experiment=previous_experiment,
+                    **kwargs,
+                )
+
+                experiment_dict[target_project] = experiment_handles
+        self.data_handlers = data_handlers
+        self.target_variables = target_variables
+        self.previous_experiment_dict = previous_experiment_dict
+        self.experiment_dict = experiment_dict
+
+    def __add__(self, other):
+        if not isinstance(other, self.__class__):
+            raise TypeError(
+                "Can only add another ExperimentFactory type objects."
+            )
+
+        combined_targets = [f for f in self.experiment_dict.keys()] + [
+            f for f in other.experiment_dict.keys()
+        ]
+        combined_targets = list(set(combined_targets))
+        experiment_dict = {}
+        for target_project in combined_targets:
+            self_experiment = self.experiment_dict.get(target_project, None)
+            other_experiment = other.experiment_dict.get(target_project, None)
+            if self_experiment is None:
+                if other_experiment is not None:
+                    combined_experiment = other_experiment
+            elif other_experiment is None:
+                combined_experiment = self_experiment
+            else:
+                combined_experiment = self_experiment + other_experiment
+            experiment_dict[target_project] = combined_experiment
+        combined_obj = ExperimentFactory(
+            new_obj=False,
+        )
+        combined_obj.experiment_dict = experiment_dict
+
+        return combined_obj

@@ -13,10 +13,7 @@ from muaddib.data.tools import (
 )
 from muaddib.muaddib import ShaiHulud
 
-# TODO: make variables for suggestion on ARIMA stuff, and other
-# sugesttion other than those:
-# mean, max, min, std
-# TODO: other than the shilud file itself, make a json file with the propriesties to load this stuff
+# TODO: Suggestion for X and Y need an adjustment to use multiple data handlers on each model handler
 
 
 # The data handle is quite good already

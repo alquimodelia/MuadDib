@@ -96,6 +96,54 @@ class ShaiHulud:
         # BUG: mirrow weights serialeries not working with the inner loss functions
         self.save()
 
+    def __add__(self, other):
+        if not isinstance(other, self.__class__):
+            raise TypeError("Can only add same ShaiHulud type objects.")
+
+        combined_config = {}
+        combined_shai_name = f"{self.name}_{other.name}"
+        combined_config["name"] = combined_shai_name
+
+        for single_conf in self.single_conf_properties:
+            single_attr = getattr(
+                self, single_conf, getattr(other, single_conf, None)
+            )
+            if single_attr is not None:
+                combined_config[single_conf] = single_attr
+        # Create a new instance of ShaiHulud to hold the combined configuration
+        combined_shai = self.__class__(**combined_config)
+
+        combined_attrs = getattr(self, "listing_conf_properties", [])
+        for attr in combined_attrs:
+            # TODO: add model handlers!!
+            self_attr = getattr(self, attr, [])
+            other_attr = getattr(other, attr, [])
+            if not isinstance(self_attr, dict):
+                combined_attr = self_attr + other_attr
+            else:
+                combined_attr = {}
+                combined_targets = list(
+                    set(
+                        [f for f in self_attr.keys()]
+                        + [f for f in other_attr.keys()]
+                    )
+                )
+
+                for key in combined_targets:
+                    if key not in other_attr:
+                        combined_attr[key] = self_attr[key]
+                    elif key not in self_attr:
+                        combined_attr[key] = other_attr[key]
+                    else:
+                        combined_attr[key] = self_attr[key] + other_attr[key]
+
+            setattr(combined_shai, attr, combined_attr)
+        # # Sum up the configurations
+        # combined_config = {**self.get_vars_to_save(), **other.get_vars_to_save()}
+        # combined_shai.setup(**combined_config)
+
+        return combined_shai
+
 
 class ProjectFolder(ShaiHulud):
     def __init__(
