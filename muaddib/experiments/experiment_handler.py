@@ -3,7 +3,10 @@ import os
 import numpy as np
 import pandas as pd
 
-from muaddib.experiments.default_functions import make_experiment_plot
+from muaddib.experiments.default_functions import (
+    make_experiment_plot,
+    make_tex_table_best_result,
+)
 from muaddib.models.model_handler import ModelHandler
 from muaddib.muaddib import ShaiHulud
 from muaddib.shaihulud_utils import AdvanceLossHandler
@@ -21,6 +24,28 @@ class ExperimentHandler(ShaiHulud):
         "result_validation_fn",
         "write_report_fn",
     ]
+    columns_model_args = [
+        "arch",
+        "activation_middle",
+        "activation_end",
+        "x_timesteps",
+        "y_timesteps",
+        "filters",
+        "features",
+        "classes",
+        "optimizer",
+        "loss",
+        "batch",
+        "weights",
+        "p",
+        "P",
+        "q",
+        "Q",
+        "d",
+        "D",
+        "s",
+        "trend",
+    ]
 
     def __init__(
         self,
@@ -37,6 +62,7 @@ class ExperimentHandler(ShaiHulud):
         previous_experiment=None,
         final_experiment=False,
         use_suggestions=True,
+        exp_col=None,
         **kwargs,
     ):
         conf_file = kwargs.get("conf_file", None)
@@ -61,6 +87,7 @@ class ExperimentHandler(ShaiHulud):
             self.final_experiment = final_experiment
             self.args_in_exp = []
             self.use_suggestions = use_suggestions
+            self.exp_col = exp_col
 
             # model_handlers = model_handlers or []
             # if not isinstance(model_handlers, list):
@@ -417,9 +444,33 @@ class ExperimentHandler(ShaiHulud):
         # exp_results = exp_results[
         #     exp_results["name"].isin(self.experiments.keys())
         # ]
+        metrics_to_keep = [
+            f
+            for f in exp_results.columns
+            if f not in [*self.columns_model_args, "name"]
+        ]
+        path_to_save = os.path.join(folder_figures, "exp_result.tex")
+        make_tex_table_best_result(
+            exp_results,
+            path_to_save,
+            exp_col=self.exp_col,
+            metric=self.validation_target,
+            metrics_to_keep=metrics_to_keep,
+        )
+        exp_results = exp_results[
+            [
+                *[
+                    f
+                    for f in exp_results.columns
+                    if f not in self.columns_model_args
+                ],
+                self.exp_col,
+            ]
+        ]
         self.write_report_fn(
             exp_results,
             folder_figures=folder_figures,
+            column_to_group=self.exp_col,
             **kwargs,
         )
 

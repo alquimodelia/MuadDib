@@ -4,6 +4,8 @@ import numpy as np
 from scipy.signal import find_peaks
 from statsmodels.tsa.stattools import acf, adfuller, pacf
 
+# TODO: study change to pmdarima
+
 
 def get_suggestion(
     data,
@@ -12,7 +14,6 @@ def get_suggestion(
     n_lags=None,
     number_maximas_to_study=20,
 ):
-    print("dddddddddoees s usuusususu")
     n_lags = n_lags or len(data)
     acf_values_all = function_suggestion(data, nlags=n_lags)
 

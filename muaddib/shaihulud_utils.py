@@ -1,9 +1,11 @@
 import glob
 import importlib
+import itertools
 import json
 import os
 
 import keras
+import numpy as np
 
 
 def save_scores(
@@ -245,9 +247,6 @@ def get_mirror_weight_loss(loss_name):
         loss_used_fn = loss_used_fn()
 
     return loss_used_fn
-
-
-import itertools
 
 
 class AdvanceLossHandler:

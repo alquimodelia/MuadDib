@@ -132,6 +132,11 @@ class DataHandler(ShaiHulud):
             self, "suggested_d", None
         ) or get_d_suggestion(target_series)
 
+        self.suggested_D = suggested_d
+        self.suggested_P = suggested_p
+        self.suggested_Q = suggested_q
+        # self.suggested_s = suggested_d
+
     def obj_setup(self):
         self.processed_data_path = os.path.join(
             self.processed_data_folder, self.dataset_file_name

@@ -116,6 +116,7 @@ class ShaiHulud:
         combined_attrs = getattr(self, "listing_conf_properties", [])
         for attr in combined_attrs:
             # TODO: add model handlers!!
+            # TODO: recursive dict vs list
             self_attr = getattr(self, attr, [])
             other_attr = getattr(other, attr, [])
             if not isinstance(self_attr, dict):
@@ -135,7 +136,34 @@ class ShaiHulud:
                     elif key not in self_attr:
                         combined_attr[key] = other_attr[key]
                     else:
-                        combined_attr[key] = self_attr[key] + other_attr[key]
+                        if not isinstance(
+                            self_attr[key], dict
+                        ) and not isinstance(other_attr[key], dict):
+                            combined_attr[key] = (
+                                self_attr[key] + other_attr[key]
+                            )
+                        elif isinstance(other_attr[key], dict):
+                            combined_attr[key] = other_attr[key]
+
+                        # else:
+                        #     comb_res = {}
+                        #     combined_second_targets = list(
+                        #             set(
+                        #                 [f for f in self_attr[key].keys()]
+                        #                 + [f for f in other_attr[key].keys()]
+                        #             )
+                        #         )
+                        #     for sec_targ in combined_second_targets:
+                        #         if sec_targ not in other_attr[key]:
+                        #             comb_res[sec_targ] = self_attr[key][sec_targ]
+                        #         elif sec_targ not in self_attr[key]:
+                        #             comb_res[sec_targ] = other_attr[key][sec_targ]
+                        #         else:
+                        #             self_sec_attr = self_attr[key][sec_targ]
+                        #             other_sec_attr = other_attr[key][sec_targ]
+                        #             if not isinstance(self_sec_attr, list):
+
+                        #             comb_res[sec_targ] = ,
 
             setattr(combined_shai, attr, combined_attr)
         # # Sum up the configurations

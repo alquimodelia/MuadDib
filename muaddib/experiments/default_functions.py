@@ -27,7 +27,7 @@ def make_all_metric_plot(
     metrics_to_check,
     benchmark_score=None,
     column_to_index="epoch",
-    column_to_group="name",
+    column_to_group=None,
     x_label_name=None,
     max_n_cols=2,
     figsize=(10, 10),
@@ -216,7 +216,7 @@ def make_metric_plot(
     benchmark_metric=None,
     figsize=(10, 10),
     column_to_index="epoch",
-    column_to_group="name",
+    column_to_group=None,
     ylimit=None,
     ylimit_down=None,
     figure_path="experiment_figure.png",
@@ -277,13 +277,21 @@ def make_metric_plot(
 
 
 def make_experiment_plot(
-    scores_df, folder_figures=None, metrics_to_sort=None, **kwargs
+    scores_df,
+    folder_figures=None,
+    metrics_to_sort=None,
+    column_to_group=None,
+    **kwargs,
 ):
-    metrics_to_sort = metrics_to_sort or ["name", "epoch"]
+    column_to_group = column_to_group or "name"
+    metrics_to_sort = metrics_to_sort or [column_to_group, "epoch"]
     scores_df = scores_df.sort_values(metrics_to_sort)
 
-    all_metrics = [f for f in scores_df.columns if f not in ["name", "epoch"]]
+    all_metrics = [
+        f for f in scores_df.columns if f not in [column_to_group, "epoch"]
+    ]
     prediction_metrics = [f for f in all_metrics if "benchmark" not in f]
+    prediction_metrics = [f for f in prediction_metrics if f != "name"]
     benchmark_metrics = [f for f in all_metrics if "benchmark" in f]
 
     benchmark_score = {}
@@ -304,7 +312,12 @@ def make_experiment_plot(
         figure_path = os.path.join(folder_figures, f"{metric}_results.png")
 
         make_metric_plot(
-            scores_df, metric, bench_metric, figure_path=figure_path, **kwargs
+            scores_df,
+            metric,
+            bench_metric,
+            column_to_group=column_to_group,
+            figure_path=figure_path,
+            **kwargs,
         )
 
     make_all_metric_plot(
@@ -312,7 +325,7 @@ def make_experiment_plot(
         prediction_metrics,
         benchmark_score=benchmark_score,
         column_to_index="epoch",
-        column_to_group="name",
+        column_to_group=column_to_group,
         max_n_cols=2,
         figsize=(10, 10),
         folder_figures=folder_figures,
@@ -324,7 +337,7 @@ def make_experiment_plot(
         ["alloc missing", "alloc surplus"],
         benchmark_score=benchmark_score,
         column_to_index="epoch",
-        column_to_group="name",
+        column_to_group=column_to_group,
         max_n_cols=2,
         figsize=(10, 10),
         folder_figures=folder_figures,
@@ -343,10 +356,54 @@ def make_experiment_plot(
         ],
         benchmark_score=benchmark_score,
         column_to_index="epoch",
-        column_to_group="name",
+        column_to_group=column_to_group,
         max_n_cols=2,
         figsize=(10, 10),
         folder_figures=folder_figures,
         figure_name="EPEAS.png",
         limit_by="",
+    )
+
+
+def make_tex_table_best_result(
+    exp_results,
+    path_to_save,
+    exp_col="name",
+    metric="EPEA norm2",
+    metrics_to_keep=None,
+):
+    # path_schema_tex = os.path.join(freq_folder_to_save_validation, "experiment_results.tex")
+    if not isinstance(exp_col, list):
+        exp_col = [exp_col]
+    num_exps = len(exp_results["name"].unique())
+    highest_metric_per_name = exp_results.groupby("name")[metric].idxmax()
+    result_df = exp_results.loc[highest_metric_per_name]
+    result_df = result_df.sort_values(metric)
+    if metrics_to_keep is None:
+        metrics_to_keep = [
+            "rmse",
+            "abs error",
+            "alloc missing",
+            "alloc surplus",
+            "EPEA F",
+            "EPEA D",
+            "EPEA",
+            "EPEA norm",
+            "EPEA Bench",
+            "EPEA Bench norm",
+            "EPEA norm2",
+            "optimal percentage",
+            "better percentage",
+            "benchmark abs error",
+            "benchmark rmse",
+            "benchmark alloc missing",
+            "benchmark alloc surplus",
+        ]
+    metrics_to_keep = [
+        f for f in metrics_to_keep if f not in [*exp_col, metric]
+    ]
+    metrics_to_keep = [*exp_col, metric] + metrics_to_keep
+    metrics_to_keep = [f for f in metrics_to_keep if f in result_df.columns]
+    result_df[metrics_to_keep].to_latex(
+        path_to_save, escape=False, index=False, float_format="%.2f"
     )

@@ -438,12 +438,45 @@ class KerasModelHandler(BaseModelHandler):
 
                 predict_score["epoch"] = epoca
                 predict_score["name"] = model_case_name
+                predict_score.update(
+                    self.return_dict_from_name(model_case_name)
+                )
                 model_scores = pd.concat(
                     [model_scores, pd.DataFrame(predict_score)]
                 )
         model_scores = model_scores.reset_index(drop=True)
         model_scores.to_csv(prediction_score_path, index=False)
         return model_scores
+
+    def return_dict_from_name(self, name):
+        (
+            arch,
+            activation_middle,
+            activation_end,
+            x_timesteps,
+            y_timesteps,
+            filters,
+            features,
+            classes,
+            optimizer,
+            loss,
+            batch,
+            weights,
+        ) = name.split("_")
+        return {
+            "arch": arch,
+            "activation_middle": activation_middle,
+            "activation_end": activation_end,
+            "x_timesteps": int(x_timesteps.replace("X", "")),
+            "y_timesteps": int(y_timesteps.replace("Y", "")),
+            "filters": int(filters.replace("f", "")),
+            "features": int(features.replace("T", "")),
+            "classes": int(classes.replace("P", "")),
+            "optimizer": classes,
+            "loss": loss,
+            "batch": int(batch.replace("B", "")),
+            "weights": weights,
+        }
 
 
 class StatsModelHandler(BaseModelHandler):
@@ -763,12 +796,29 @@ class StatsModelHandler(BaseModelHandler):
 
                 predict_score["epoch"] = 1
                 predict_score["name"] = model_case_name
+                predict_score.update(
+                    self.return_dict_from_name(model_case_name)
+                )
                 model_scores = pd.concat(
                     [model_scores, pd.DataFrame(predict_score)]
                 )
         model_scores = model_scores.reset_index(drop=True)
         model_scores.to_csv(prediction_score_path, index=False)
         return model_scores
+
+    def return_dict_from_name(self, name):
+        arch, p, d, q, P, D, Q, s, trend = name.split("_")
+        return {
+            "arch": arch,
+            "p": int(p.replace("p", "")),
+            "d": int(d.replace("d", "")),
+            "q": int(q.replace("q", "")),
+            "P": int(P.replace("P", "")),
+            "D": int(D.replace("D", "")),
+            "Q": int(Q.replace("Q", "")),
+            "s": int(s.replace("s", "")),
+            "trend": trend,
+        }
 
 
 class ModelHandler(ShaiHulud):
