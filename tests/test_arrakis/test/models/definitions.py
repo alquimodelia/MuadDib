@@ -16,8 +16,8 @@ TRAIN_FRACTION = float(os.getenv("TRAIN_FRACTION", 1))
 
 
 epocas = 200
-X_timeseries = 168
-Y_timeseries = 24
+x_timesteps = 168
+y_timesteps = 24
 frac = 1
 train_features_folga = 24
 skiping_step = 1
@@ -31,8 +31,8 @@ y_columns = columns_Y
 
 get_dataset_args = {
     "y_columns": columns_Y,
-    "time_moving_window_size_X": X_timeseries,
-    "time_moving_window_size_Y": Y_timeseries,
+    "time_moving_window_size_X": x_timesteps,
+    "time_moving_window_size_Y": y_timesteps,
     "frac": frac,
     "keep_y_on_x": keep_y_on_x,
     "train_features_folga": train_features_folga,
@@ -62,19 +62,19 @@ models_strutres = {
     "UNET": {"arch": "UNETArch"},
     "EncoderDecoder": {"arch": "EncoderDecoder"},
 }
-X_timeseries = 168
-Y_timeseries = 24
-n_features_train = 18
-n_features_predict = 1
+x_timesteps = 168
+y_timesteps = 24
+num_features_to_train = 18
+num_classes = 1
 activation_middle = "relu"
 activation_end = "relu"
 
 
 input_args = {
-    "X_timeseries": X_timeseries,
-    "Y_timeseries": Y_timeseries,
-    "n_features_train": n_features_train,
-    "n_features_predict": n_features_predict,
+    "x_timesteps": x_timesteps,
+    "y_timesteps": y_timesteps,
+    "num_features_to_train": num_features_to_train,
+    "num_classes": num_classes,
     "activation_middle": activation_end,
     "activation_end": activation_middle,
 }
@@ -118,10 +118,10 @@ def get_models_dict(
     return models_dict
 
 
-X_timeseries = 168
-Y_timeseries = 24
-n_features_train = 18
-n_features_predict = 1
+x_timesteps = 168
+y_timesteps = 24
+num_features_to_train = 18
+num_classes = 1
 activation_middle = "relu"
 activation_end = "relu"
 activation_list = [f for f in dir(keras.activations) if "__" not in f]
@@ -130,10 +130,10 @@ activation_list = [
 ]
 
 input_args = {
-    "X_timeseries": X_timeseries,
-    "Y_timeseries": Y_timeseries,
-    "n_features_train": n_features_train,
-    "n_features_predict": n_features_predict,
+    "x_timesteps": x_timesteps,
+    "y_timesteps": y_timesteps,
+    "num_features_to_train": num_features_to_train,
+    "num_classes": num_classes,
     "activation_middle": activation_list,
     "activation_end": activation_list,
 }
@@ -163,10 +163,10 @@ def get_models_on_experiments(
         args = {
             key: value for key, value in zip(input_args.keys(), combination)
         }
-        X_timeseries = args["X_timeseries"]
-        Y_timeseries = args["Y_timeseries"]
-        X_in_vars = "X_timeseries" in vars_lists
-        Y_in_vars = "Y_timeseries" in vars_lists
+        x_timesteps = args["x_timesteps"]
+        y_timesteps = args["y_timesteps"]
+        X_in_vars = "x_timesteps" in vars_lists
+        Y_in_vars = "y_timesteps" in vars_lists
         time_in_vars = X_in_vars or Y_in_vars
 
         activation_middle = args["activation_middle"]
@@ -177,10 +177,10 @@ def get_models_on_experiments(
             activation_middle_in_vars or activation_end_in_vars
         )
 
-        if args["X_timeseries"] < args["Y_timeseries"]:
+        if args["x_timesteps"] < args["y_timesteps"]:
             continue
         if time_in_vars:
-            case_name += f"X{X_timeseries}_Y{Y_timeseries}_"
+            case_name += f"X{x_timesteps}_Y{y_timesteps}_"
         if activation_in_vars:
             case_name += f"{activation_middle}_{activation_end}_"
         if case_name.endswith("_"):

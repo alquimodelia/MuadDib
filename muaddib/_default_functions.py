@@ -323,19 +323,19 @@ def validate_model(
     data_for_btc_validation_final = (
         datamanager.read_data()
         .drop(["date"], axis=1)
-        .iloc[-datamanager.X_timeseries :]
+        .iloc[-datamanager.x_timesteps :]
         .values
     )
     data_for_btc_validation_final = data_for_btc_validation_final.reshape(
         (1, *data_for_btc_validation_final.shape)
     )
     data_for_btc_validation_edge = None
-    edge_value = datamanager.Y_timeseries - 12
+    edge_value = datamanager.y_timesteps - 12
     if edge_value > 0:
         data_for_btc_validation_edge = (
             datamanager.read_data()
             .drop(["date"], axis=1)
-            .iloc[-(datamanager.X_timeseries + edge_value) : -edge_value]
+            .iloc[-(datamanager.x_timesteps + edge_value) : -edge_value]
             .values
         )
         data_for_btc_validation_edge = data_for_btc_validation_edge.reshape(

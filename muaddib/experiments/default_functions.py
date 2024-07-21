@@ -64,8 +64,22 @@ def make_all_metric_plot(
     nrows, ncols = get_ncols_nrows_figure(n_plots, max_n_cols=max_n_cols)
     # Create a grid of subplots with the desired number of rows and columns
     fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize)
+    if len(column_to_group) == 1:
+        list_of_labels = scores_df[column_to_group[0]].unique().tolist()
+    else:
+        list_of_labels = scores_df[column_to_group].drop_duplicates(
+            inplace=True
+        )
+        column_to_group_name = "".join(column_to_group)
+        list_of_labels[column_to_group_name] = list_of_labels[
+            column_to_group[0]
+        ].astype(str)
+        for more_cols in column_to_group[1:]:
+            list_of_labels[column_to_group_name] += list_of_labels[
+                more_cols
+            ].astype(str)
+        list_of_labels = list_of_labels[column_to_group_name].unique().tolist()
 
-    list_of_labels = scores_df[column_to_group].unique().tolist()
     # Get the number of unique labels
     num_labels = len(list_of_labels)
 
@@ -283,15 +297,19 @@ def make_experiment_plot(
     column_to_group=None,
     **kwargs,
 ):
-    column_to_group = column_to_group or "name"
-    metrics_to_sort = metrics_to_sort or [column_to_group, "epoch"]
+    column_to_group = column_to_group or ["name"]
+    if not isinstance(column_to_group, list):
+        column_to_group = [column_to_group]
+    metrics_to_sort = metrics_to_sort or [*column_to_group, "epoch"]
     scores_df = scores_df.sort_values(metrics_to_sort)
 
     all_metrics = [
         f for f in scores_df.columns if f not in [column_to_group, "epoch"]
     ]
     prediction_metrics = [f for f in all_metrics if "benchmark" not in f]
-    prediction_metrics = [f for f in prediction_metrics if f != "name"]
+    prediction_metrics = [
+        f for f in prediction_metrics if f not in ["name", *column_to_group]
+    ]
     benchmark_metrics = [f for f in all_metrics if "benchmark" in f]
 
     benchmark_score = {}

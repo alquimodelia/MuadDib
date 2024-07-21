@@ -90,8 +90,8 @@ def get_keras_predictions(model_path, X, **valdiation_args):
 def get_statsmodel_predictions(model_path, datamanager):
     from statsmodels.tsa.arima.model import ARIMAResults
 
-    x_timesteps = datamanager.X_timeseries
-    y_timesteps = datamanager.Y_timeseries
+    x_timesteps = datamanager.x_timesteps
+    y_timesteps = datamanager.y_timesteps
     datamanager.set_validation_index()
     validation_start_index = datamanager.validation_index_start + x_timesteps
     validation_end_index = datamanager.validation_index_end - y_timesteps

@@ -168,10 +168,10 @@ class CaseModel:
         name=None,
         arquitecture=None,
         # Data speciifics
-        X_timeseries=X_TIMESERIES,
-        Y_timeseries=Y_TIMESERIES,
-        n_features_predict=None,
-        n_features_train=None,
+        x_timesteps=X_TIMESERIES,
+        y_timesteps=Y_TIMESERIES,
+        num_classes=None,
+        num_features_to_train=None,
         activation_middle="relu",
         activation_end="relu",
         keras_backend="torch",
@@ -191,12 +191,12 @@ class CaseModel:
         self.model_types = model_types
 
         # Data speciifics
-        self.X_timeseries = X_timeseries
-        self.Y_timeseries = Y_timeseries
+        self.x_timesteps = x_timesteps
+        self.y_timesteps = y_timesteps
         self.activation_middle = activation_middle
         self.activation_end = activation_end
-        self.n_features_predict = n_features_predict
-        self.n_features_train = n_features_train
+        self.num_classes = num_classes
+        self.num_features_to_train = num_features_to_train
         self.n_filters = n_filters
 
         self.keras_backend = keras_backend
@@ -214,10 +214,10 @@ class CaseModel:
         self.case_to_study_name = case_to_study_name
 
         self.input_args = {
-            "X_timeseries": self.X_timeseries,
-            "Y_timeseries": self.Y_timeseries,
-            "n_features_train": self.n_features_train,
-            "n_features_predict": self.n_features_predict,
+            "x_timesteps": self.x_timesteps,
+            "y_timesteps": self.y_timesteps,
+            "num_features_to_train": self.num_features_to_train,
+            "num_classes": self.num_classes,
             "activation_middle": self.activation_middle,
             "activation_end": self.activation_end,
         }
@@ -238,17 +238,17 @@ class CaseModel:
         for var in list_vars:
             var_to_add = str(var) or ""
             name += f"_{var_to_add}"
-        x_timeseries = f"_X{self.X_timeseries}"
-        y_timeseries = f"_Y{self.Y_timeseries}"
-        n_features_predict = f"_P{self.n_features_predict}"
-        n_features_train = f"_T{self.n_features_train}"
+        x_timeseries = f"_X{self.x_timesteps}"
+        y_timeseries = f"_Y{self.y_timesteps}"
+        num_classes = f"_P{self.num_classes}"
+        num_features_to_train = f"_T{self.num_features_to_train}"
         n_filters = f"_f{self.n_filters}"
         name = (
             name
             + x_timeseries
             + y_timeseries
-            + n_features_train
-            + n_features_predict
+            + num_features_to_train
+            + num_classes
             + n_filters
         )
         return name
@@ -383,10 +383,10 @@ class ModelHalleck:
         name=None,
         archs_to_use=None,
         # Data speciifics
-        X_timeseries=None,
-        Y_timeseries=None,
-        n_features_predict=None,
-        n_features_train=None,
+        x_timesteps=None,
+        y_timesteps=None,
+        num_classes=None,
+        num_features_to_train=None,
         activation_middle=None,
         activation_end=None,
         keras_backend="torch",
@@ -404,12 +404,12 @@ class ModelHalleck:
         self.model_types = model_types
 
         # Data speciifics
-        self.X_timeseries = X_timeseries
-        self.Y_timeseries = Y_timeseries
+        self.x_timesteps = x_timesteps
+        self.y_timesteps = y_timesteps
         self.activation_middle = activation_middle
         self.activation_end = activation_end
-        self.n_features_predict = n_features_predict
-        self.n_features_train = n_features_train
+        self.num_classes = num_classes
+        self.num_features_to_train = num_features_to_train
         self.n_filters = n_filters
 
         self.keras_backend = keras_backend
@@ -426,8 +426,8 @@ class ModelHalleck:
         # self.dataset_file_name = dataset_file_name
 
         # # Data speciifics
-        # self.X_timeseries = X_timeseries
-        # self.Y_timeseries = Y_timeseries
+        # self.x_timesteps = x_timesteps
+        # self.y_timesteps = y_timesteps
         # self.activation_middle = activation_middle
         # self.activation_end = activation_end
 
@@ -595,17 +595,17 @@ class ModelHalleck:
         list_vars = [
             "activation_middle",
             "activation_end",
-            "X_timeseries",
-            "Y_timeseries",
+            "x_timesteps",
+            "y_timesteps",
             "n_filters",
-            "n_features_train",
-            "n_features_predict",
+            "num_features_to_train",
+            "num_classes",
         ]
         self.input_args = {
-            "X_timeseries": self.X_timeseries,
-            "Y_timeseries": self.Y_timeseries,
-            "n_features_train": self.n_features_train,
-            "n_features_predict": self.n_features_predict,
+            "x_timesteps": self.x_timesteps,
+            "y_timesteps": self.y_timesteps,
+            "num_features_to_train": self.num_features_to_train,
+            "num_classes": self.num_classes,
             "activation_middle": self.activation_middle,
             "activation_end": self.activation_end,
         }
@@ -771,10 +771,10 @@ class ModelHalleck:
     #         args = {
     #             key: value for key, value in zip(input_args.keys(), combination)
     #         }
-    #         X_timeseries = args["X_timeseries"]
-    #         Y_timeseries = args["Y_timeseries"]
-    #         X_in_vars = "X_timeseries" in vars_lists
-    #         Y_in_vars = "Y_timeseries" in vars_lists
+    #         x_timesteps = args["x_timesteps"]
+    #         y_timesteps = args["y_timesteps"]
+    #         X_in_vars = "x_timesteps" in vars_lists
+    #         Y_in_vars = "y_timesteps" in vars_lists
     #         time_in_vars = X_in_vars or Y_in_vars
 
     #         activation_middle = args["activation_middle"]
@@ -785,10 +785,10 @@ class ModelHalleck:
     #             activation_middle_in_vars or activation_end_in_vars
     #         )
 
-    #         if args["X_timeseries"] < args["Y_timeseries"]:
+    #         if args["x_timesteps"] < args["y_timesteps"]:
     #             continue
     #         if time_in_vars:
-    #             case_name += f"X{X_timeseries}_Y{Y_timeseries}_"
+    #             case_name += f"X{x_timesteps}_Y{y_timesteps}_"
     #         if activation_in_vars:
     #             case_name += f"{activation_middle}_{activation_end}_"
     #         if case_name.endswith("_"):

@@ -69,7 +69,7 @@ def process_data_fn(y_columns, path_raw=RAW_FILE_PATH, **kwargs):
     # Convert the result back to a DataFrame
     df_imputed = pd.DataFrame(df_imputed, columns=df.columns, index=df.index)
     df_imputed["datetime"] = dataset["datetime"]
-
+    df_imputed.drop_duplicates(inplace=True)
     df_imputed.to_csv(PROCESSED_FILE_PATH)
 
     # Contruct the method to process the data
@@ -156,8 +156,8 @@ def process_benchmark_fn(
 
 factory_args = {
     "dataset_file_name": PROCESSED_FILE_NAME,
-    "X_timeseries": X_TIMESERIES,
-    "Y_timeseries": Y_TIMESERIES,
+    "x_timesteps": X_TIMESERIES,
+    "y_timesteps": Y_TIMESERIES,
     "datetime_col": "datetime",
     "process_fn": process_data_fn,
     "read_fn": read_data_fn,

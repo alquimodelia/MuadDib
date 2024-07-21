@@ -29,8 +29,8 @@ class DatasetManager:
         dataset_file_name="dados_2014-2022.csv",  # TODO: change to something more general
         name=None,
         # Data speciifics
-        X_timeseries=X_TIMESERIES,
-        Y_timeseries=Y_TIMESERIES,
+        x_timesteps=X_TIMESERIES,
+        y_timesteps=Y_TIMESERIES,
         columns_Y=None,  # List
         datetime_col="datetime",
         keras_backend="torch",
@@ -48,8 +48,8 @@ class DatasetManager:
         self.dataset_file_name = dataset_file_name
 
         # Data speciifics
-        self.X_timeseries = X_timeseries
-        self.Y_timeseries = Y_timeseries
+        self.x_timesteps = x_timesteps
+        self.y_timesteps = y_timesteps
         self.datetime_col = datetime_col
         self.columns_Y = columns_Y
 
@@ -80,10 +80,10 @@ class DatasetManager:
 
         self.dataframe = self.read_data()
         self.y_mean = self.dataframe[self.columns_Y].mean().item()
-        self.n_features_train = len(
+        self.num_features_to_train = len(
             self.dataframe.drop(self.datetime_col, axis=1).columns
         )
-        self.n_features_predict = len(self.columns_Y)
+        self.num_classes = len(self.columns_Y)
 
         if self.keras_sequence_cls is None:
             from alquitable.generator import DataGenerator
@@ -136,7 +136,7 @@ class DatasetManager:
 
         validation_benchmark = (
             self.validation_dataframe[alloc_column]
-            .iloc[self.X_timeseries : -self.Y_timeseries]
+            .iloc[self.x_timesteps : -self.y_timesteps]
             .values.reshape(validation_dataset_Y.shape)
         )
 
@@ -150,8 +150,8 @@ class DatasetManager:
         kwargs_to_use.update(kwargs)
         data_generator = self.keras_sequence_cls(
             dataset=copy.deepcopy(dataframe_to_use),
-            time_moving_window_size_X=self.X_timeseries,
-            time_moving_window_size_Y=self.Y_timeseries,
+            time_moving_window_size_X=self.x_timesteps,
+            time_moving_window_size_Y=self.y_timesteps,
             y_columns=self.columns_Y,
             **kwargs_to_use
         )

@@ -3,6 +3,7 @@ import inspect
 import os
 
 import pandas as pd
+from alquimodelia.alquimodelia import ModelMagia
 from keras.losses import MeanSquaredError
 from statsmodels.tsa.ar_model import AutoReg
 from statsmodels.tsa.arima.model import ARIMA
@@ -27,14 +28,12 @@ from muaddib.shaihulud_utils import (
 
 
 def default_muaddib_model_builder(params, filepath=None):
-    from forecat.models_definitions import get_model_from_def
 
     model_arch = params.pop("archs")
     archs_args = {}
     archs_args["filters"] = params.pop("filters")
-    model_obj = get_model_from_def(
-        model_arch, input_args=params, architecture_args=archs_args
-    )
+    model_obj = ModelMagia(model_arch, **params, **archs_args).model
+
     if filepath:
         model_json = model_obj.to_json()
         write_dict_to_file(model_json, filepath)
@@ -115,11 +114,11 @@ class KerasModelHandler(BaseModelHandler):
     model_args = [
         "activation_end",
         "activation_middle",
-        "X_timeseries",
-        "Y_timeseries",
+        "x_timesteps",
+        "y_timesteps",
         "filters",
-        "n_features_train",
-        "n_features_predict",
+        "num_features_to_train",
+        "num_classes",
     ]
     fit_kwargs = [
         "optimizer",
@@ -141,11 +140,11 @@ class KerasModelHandler(BaseModelHandler):
         archs=None,
         activation_middle=None,
         activation_end=None,
-        X_timeseries=None,
-        Y_timeseries=None,
+        x_timesteps=None,
+        y_timesteps=None,
         filters=None,
-        n_features_train=None,
-        n_features_predict=None,
+        num_features_to_train=None,
+        num_classes=None,
         optimizer=None,
         loss=None,
         batch_size=None,
@@ -177,18 +176,16 @@ class KerasModelHandler(BaseModelHandler):
         self.activation_middle = activation_middle
         self.activation_end = activation_end
         extra_y_timesteps = max([0, datamanager.commun_steps])
-        y_timesteps = datamanager.Y_timeseries + extra_y_timesteps
+        y_timesteps = datamanager.y_timesteps + extra_y_timesteps
 
-        self.X_timeseries = X_timeseries or datamanager.X_timeseries
-        self.Y_timeseries = Y_timeseries or y_timesteps
+        self.x_timesteps = x_timesteps or datamanager.x_timesteps
+        self.y_timesteps = y_timesteps or y_timesteps
         self.filters = filters
 
-        self.n_features_train = (
-            n_features_train or datamanager.n_features_train
+        self.num_features_to_train = (
+            num_features_to_train or datamanager.num_features_to_train
         )
-        self.n_features_predict = (
-            n_features_predict or datamanager.n_features_predict
-        )
+        self.num_classes = num_classes or datamanager.num_classes
 
         self.optimizer = optimizer
         self.loss = loss
@@ -209,22 +206,22 @@ class KerasModelHandler(BaseModelHandler):
         activation_middle = self.activation_middle or "relu"
         activation_end = self.activation_end or "relu"
 
-        X_timeseries = self.X_timeseries or 168
-        Y_timeseries = self.Y_timeseries or 24
+        x_timesteps = self.x_timesteps or 168
+        y_timesteps = self.y_timesteps or 24
         filters = self.filters or 16
 
-        n_features_predict = self.n_features_predict or 1
-        n_features_train = self.n_features_train or 18
+        num_classes = self.num_classes or 1
+        num_features_to_train = self.num_features_to_train or 18
 
         parameters_to_list = {
             "archs": archs,
             "activation_middle": activation_middle,
             "activation_end": activation_end,
-            "X_timeseries": X_timeseries,
-            "Y_timeseries": Y_timeseries,
+            "x_timesteps": x_timesteps,
+            "y_timesteps": y_timesteps,
             "filters": filters,
-            "n_features_predict": n_features_predict,
-            "n_features_train": n_features_train,
+            "num_classes": num_classes,
+            "num_features_to_train": num_features_to_train,
         }
         return expand_all_alternatives(parameters_to_list)
 
@@ -267,11 +264,11 @@ class KerasModelHandler(BaseModelHandler):
                 ar = mod["archs"]
                 am = mod["activation_middle"]
                 ae = mod["activation_end"]
-                x = mod["X_timeseries"]
-                y = mod["Y_timeseries"]
+                x = mod["x_timesteps"]
+                y = mod["y_timesteps"]
                 f = mod["filters"]
-                T = mod["n_features_train"]
-                P = mod["n_features_predict"]
+                T = mod["num_features_to_train"]
+                P = mod["num_classes"]
 
                 mod_name = f"{ar}_{am}_{ae}_X{x}_Y{y}_f{f}_T{T}_P{P}"
             named_models[mod_name] = mod
@@ -445,6 +442,7 @@ class KerasModelHandler(BaseModelHandler):
                     [model_scores, pd.DataFrame(predict_score)]
                 )
         model_scores = model_scores.reset_index(drop=True)
+        model_scores.drop_duplicates(inplace=True)
         model_scores.to_csv(prediction_score_path, index=False)
         return model_scores
 
@@ -803,6 +801,7 @@ class StatsModelHandler(BaseModelHandler):
                     [model_scores, pd.DataFrame(predict_score)]
                 )
         model_scores = model_scores.reset_index(drop=True)
+        model_scores.drop_duplicates(inplace=True)
         model_scores.to_csv(prediction_score_path, index=False)
         return model_scores
 

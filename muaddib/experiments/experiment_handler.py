@@ -88,6 +88,8 @@ class ExperimentHandler(ShaiHulud):
             self.args_in_exp = []
             self.use_suggestions = use_suggestions
             self.exp_col = exp_col
+            if not isinstance(self.exp_col, list):
+                self.exp_col = [self.exp_col]
 
             # model_handlers = model_handlers or []
             # if not isinstance(model_handlers, list):
@@ -102,8 +104,8 @@ class ExperimentHandler(ShaiHulud):
             # #     "archs": archs,
             # #     "activation_middle": activation_middle,
             # #     "activation_end": activation_end,
-            # #     "X_timeseries": data_manager.X_timeseries,
-            # #     "Y_timeseries": data_manager.Y_timeseries + extra_y_timesteps,
+            # #     "x_timesteps": data_manager.x_timesteps,
+            # #     "y_timesteps": data_manager.y_timesteps + extra_y_timesteps,
             # #     "filters": filters,
             # # }
             # # obj_setup_args = {
@@ -463,8 +465,8 @@ class ExperimentHandler(ShaiHulud):
                     f
                     for f in exp_results.columns
                     if f not in self.columns_model_args
-                ],
-                self.exp_col,
+                ]
+                + self.exp_col,
             ]
         ]
         self.write_report_fn(
@@ -573,8 +575,8 @@ class ExperimentHandler(ShaiHulud):
 #                 "archs": archs,
 #                 "activation_middle": activation_middle,
 #                 "activation_end": activation_end,
-#                 "X_timeseries": data_manager.X_timeseries,
-#                 "Y_timeseries": data_manager.Y_timeseries + extra_y_timesteps,
+#                 "x_timesteps": data_manager.x_timesteps,
+#                 "y_timesteps": data_manager.y_timesteps + extra_y_timesteps,
 #                 "filters": filters,
 #             }
 #             obj_setup_args = {
@@ -607,8 +609,8 @@ class ExperimentHandler(ShaiHulud):
 #                     previous_experiment.best_exp["model"]
 #                 ].copy()
 #             )
-#             previous_best_model.pop("n_features_predict")
-#             previous_best_model.pop("n_features_train")
+#             previous_best_model.pop("num_classes")
+#             previous_best_model.pop("num_features_to_train")
 #             previous_best_model.update(
 #                 {k: v for k, v in model_handler_args.items() if v is not None}
 #             )
@@ -624,8 +626,8 @@ class ExperimentHandler(ShaiHulud):
 #         self.model_handler = ModelHandler(
 #             name=self.name,
 #             project_manager=self.project_manager,
-#             n_features_predict=self.data_manager.n_features_predict,
-#             n_features_train=self.data_manager.n_features_train,
+#             num_classes=self.data_manager.num_classes,
+#             num_features_to_train=self.data_manager.num_features_to_train,
 #             target_variable=self.target_variable,
 #             data_manager_name=self.data_manager.name,
 #             train_fn=self.train_fn,

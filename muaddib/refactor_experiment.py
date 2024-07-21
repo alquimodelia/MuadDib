@@ -648,10 +648,10 @@ class Experiment(SpiceEyes):
             self.halleck_obj = ModelHalleck(conf_file=halleck_conf_file)
         if self.halleck_obj is None:
             halleck_init_args = {
-                "X_timeseries": self.DataManager.X_timeseries,
-                "Y_timeseries": self.DataManager.Y_timeseries,
-                "n_features_predict": self.DataManager.n_features_predict,
-                "n_features_train": self.DataManager.n_features_train,
+                "x_timesteps": self.DataManager.x_timesteps,
+                "y_timesteps": self.DataManager.y_timesteps,
+                "num_classes": self.DataManager.num_classes,
+                "num_features_to_train": self.DataManager.num_features_to_train,
                 "activation_middle": self.activation_middle,
                 "activation_end": self.activation_end,
                 "conf_file": halleck_conf_file,
@@ -1547,6 +1547,7 @@ class Experiment(SpiceEyes):
                 case_results_sort = pd.concat(
                     [case_results.head(), case_results.tail()]
                 )
+                case_results_sort.drop_duplicates(inplace=True)
                 case_results_sort.to_csv(path_schema_csv, index=False)
                 case_results_sort.to_latex(
                     path_schema_tex,
@@ -1562,7 +1563,7 @@ class Experiment(SpiceEyes):
                     case_report_path,
                     f"experiment_results_{COLUMN_TO_SORT_BY}_complete.tex",
                 )
-
+            case_results.drop_duplicates(inplace=True)
             case_results.to_csv(path_schema_csv, index=False)
             case_results.to_latex(
                 path_schema_tex, escape=False, index=False, float_format="%.2f"

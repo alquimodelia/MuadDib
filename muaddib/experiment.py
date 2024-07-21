@@ -661,6 +661,7 @@ class Case(SpiceEyes):
             case_results_sort = pd.concat(
                 [case_results.head(), case_results.tail()]
             )
+            case_results_sort.drop_duplicates(inplace=True)
             case_results_sort.to_csv(path_schema_csv, index=False)
             case_results_sort.to_latex(
                 path_schema_tex, escape=False, index=False, float_format="%.2f"
@@ -673,7 +674,7 @@ class Case(SpiceEyes):
                 case_report_path,
                 f"case_results_{VALIDATION_TARGET}_complete.tex",
             )
-
+        case_results.drop_duplicates(inplace=True)
         case_results.to_csv(path_schema_csv, index=False)
         case_results.to_latex(
             path_schema_tex, escape=False, index=False, float_format="%.2f"
@@ -1176,6 +1177,7 @@ class Experiment(SpiceEyes):
             case_results_sort = pd.concat(
                 [case_results.head(), case_results.tail()]
             )
+            case_results_sort.drop_duplicates(inplace=True)
             case_results_sort.to_csv(path_schema_csv, index=False)
             case_results_sort.to_latex(
                 path_schema_tex, escape=False, index=False, float_format="%.2f"
@@ -1188,7 +1190,7 @@ class Experiment(SpiceEyes):
                 case_report_path,
                 f"experiment_results_{VALIDATION_TARGET}_complete.tex",
             )
-
+        case_results.drop_duplicates(inplace=True)
         case_results.to_csv(path_schema_csv, index=False)
         case_results.to_latex(
             path_schema_tex, escape=False, index=False, float_format="%.2f"

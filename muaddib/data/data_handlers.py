@@ -25,8 +25,8 @@ class DataHandler(ShaiHulud):
         name=None,
         project_manager=None,
         # Data speciifics
-        X_timeseries=168,
-        Y_timeseries=24,
+        x_timesteps=168,
+        y_timesteps=24,
         columns_Y=None,  # List
         datetime_col="datetime",
         keras_backend="torch",
@@ -51,8 +51,8 @@ class DataHandler(ShaiHulud):
             project_manager: The project manager.
 
         Keyword Args:
-            X_timeseries: The time series for X data. Defaults to 168.
-            Y_timeseries: The time series for Y data. Defaults to 24.
+            x_timesteps: The time series for X data. Defaults to 168.
+            y_timesteps: The time series for Y data. Defaults to 24.
             columns_Y: The list of columns for Y data.
             datetime_col: The name of the datetime column. Defaults to "datetime".
             keras_backend: The backend for Keras. Defaults to "torch".
@@ -87,8 +87,8 @@ class DataHandler(ShaiHulud):
         self.dataset_file_name = dataset_file_name
 
         # Data speciifics
-        self.X_timeseries = X_timeseries
-        self.Y_timeseries = Y_timeseries
+        self.x_timesteps = x_timesteps
+        self.y_timesteps = y_timesteps
         self.commun_steps = commun_steps
         self.datetime_col = datetime_col
         self.columns_Y = columns_Y
@@ -148,10 +148,10 @@ class DataHandler(ShaiHulud):
 
         dataframe = self.read_data()
         target_series = dataframe[self.columns_Y]
-        self.n_features_train = len(
+        self.num_features_to_train = len(
             dataframe.drop(self.datetime_col, axis=1).columns
         )
-        self.n_features_predict = len(self.columns_Y)
+        self.num_classes = len(self.columns_Y)
 
         if self.keras_sequence_cls is None:
             from alquitable.generator import DataGenerator
@@ -231,7 +231,7 @@ class DataHandler(ShaiHulud):
                 alloc_column.append(allo)
         validation_benchmark = (
             self.get_validation_dataframe()[alloc_column]
-            .iloc[self.X_timeseries : -self.Y_timeseries]
+            .iloc[self.x_timesteps : -self.y_timesteps]
             .values.reshape(validation_dataset_Y.shape)
         )
 
@@ -245,8 +245,8 @@ class DataHandler(ShaiHulud):
         kwargs_to_use.update(kwargs)
         data_generator = self.keras_sequence_cls(
             dataset=copy.deepcopy(dataframe_to_use),
-            time_moving_window_size_X=self.X_timeseries,
-            time_moving_window_size_Y=self.Y_timeseries,
+            time_moving_window_size_X=self.x_timesteps,
+            time_moving_window_size_Y=self.y_timesteps,
             y_columns=self.columns_Y,
             **kwargs_to_use,
         )
