@@ -367,7 +367,10 @@ class KerasModelHandler(BaseModelHandler):
         model_obj, last_epoch, freq_saves_folder = self.get_model_obj(
             model_case_name, loss=loss
         )
+        if isinstance(epochs, list):
+            epochs=min(epochs)
         if last_epoch:
+            # TODO: fix epochs from experiment to model handler, it is making a list of both
             epochs = epochs - last_epoch
         if epochs < 1:
             return

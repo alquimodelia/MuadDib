@@ -360,7 +360,6 @@ def validate_model(
         predictions = trained_model.predict(X)
     else:
         predictions = np.load(prediction_path)["prediction"]
-    print(predictions)
     # THis is cannot be merge, its btc to damn shit
     benchmark_final = trained_model.predict(data_for_btc_validation_final)
     benchmark_edge = None
@@ -433,9 +432,6 @@ def train_model(
         fit_args.update({"sample_weight": sample_weights})
 
     model_obj.compile(**compile_args)
-    print(model_obj.summary())
-    print(X.shape)
-    print(Y.shape)
     history_new = model_obj.fit(X, Y, **fit_args, **kwargs)
     return history_new
 

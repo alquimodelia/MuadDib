@@ -157,7 +157,6 @@ class DataHandler(ShaiHulud):
             from alquitable.generator import DataGenerator
 
             self.keras_sequence_cls = DataGenerator
-        print(self.__dict__)
         self.setup_data_properties(target_series)
 
     def get_validation_dataframe(self):

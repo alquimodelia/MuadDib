@@ -101,7 +101,6 @@ class AdvanceLossHandlerSerializer(Serializer):
         )
 
     def decode(self, s):
-        print(s)
         if not isinstance(s, dict):
             s = ast.literal_eval(s)
         losses_to_use = [
