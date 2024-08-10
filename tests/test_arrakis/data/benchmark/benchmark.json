@@ -1,1 +1,1 @@
-{"name": "benchmark", "rmse": 536.5538148832388, "alloc missing": 152679.0, "alloc surplus": 17205147.75, "abs error":17357826.75}
+{"name": "benchmark", "RMSE": 536.5538148832388, "AllocF": 152679.0, "AllocD": 17205147.75, "SAE":17357826.75}

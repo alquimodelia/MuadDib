@@ -465,7 +465,7 @@ class KerasModelHandler(BaseModelHandler):
             weights,
         ) = name.split("_")
         return {
-            "arch": arch,
+            "archs": arch,
             "activation_middle": activation_middle,
             "activation_end": activation_end,
             "x_timesteps": int(x_timesteps.replace("X", "")),
@@ -473,7 +473,7 @@ class KerasModelHandler(BaseModelHandler):
             "filters": int(filters.replace("f", "")),
             "features": int(features.replace("T", "")),
             "classes": int(classes.replace("P", "")),
-            "optimizer": classes,
+            "optimizer": optimizer,
             "loss": loss,
             "batch": int(batch.replace("B", "")),
             "weights": weights,
@@ -811,7 +811,7 @@ class StatsModelHandler(BaseModelHandler):
     def return_dict_from_name(self, name):
         arch, p, d, q, P, D, Q, s, trend = name.split("_")
         return {
-            "arch": arch,
+            "archs": arch,
             "p": int(p.replace("p", "")),
             "d": int(d.replace("d", "")),
             "q": int(q.replace("q", "")),

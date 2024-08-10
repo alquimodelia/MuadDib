@@ -63,7 +63,7 @@ def startup(env_file=".env"):
     )
     os.environ["PROCESSED_FILE_PATH"] = PROCESSED_FILE_PATH
 
-    VALIDATION_TARGET = os.getenv("VALIDATION_TARGET", "EPEA")
+    VALIDATION_TARGET = os.getenv("VALIDATION_TARGET", "GPD")
     os.environ["VALIDATION_TARGET"] = VALIDATION_TARGET
 
     REDO_VALIDATION = os.getenv("REDO_VALIDATION", False)

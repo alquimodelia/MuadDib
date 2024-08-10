@@ -106,14 +106,14 @@ def make_all_metric_plot(
         # color = label_color_mapping[label]
         if shadow_plot:
             if met in [
-                "rmse",
-                "abs error",
-                "alloc missing",
-                "alloc surplus",
-                "benchmark abs error",
+                "RMSE",
+                "SAE",
+                "AllocF",
+                "AllocD",
+                "benchmark SAE",
                 "benchmark rmse",
-                "benchmark alloc missing",
-                "benchmark alloc surplus",
+                "benchmark AllocF",
+                "benchmark AllocD",
             ]:
                 scores_df.groupby(column_to_group).min()[met].plot.bar(ax=ax)
             else:
@@ -161,7 +161,7 @@ def make_all_metric_plot(
         ylabel = "MWh"
         if "perce" in met:
             ylabel = "%"
-        if "mape" in met:
+        if "GPD" in met:
             ylabel = "%"
         if ylabel == "%":
             # Set y-axis limits
@@ -189,7 +189,7 @@ def make_all_metric_plot(
                         figure_name = figure_name.replace(
                             ".png", "_near_benchmark.png"
                         )
-            elif "EPEA" in met:
+            elif "GPD" in met:
                 ylimit = 100
                 ylimit_down = -20
 
@@ -201,12 +201,18 @@ def make_all_metric_plot(
     fig.legend(handles, labels, loc="center left", bbox_to_anchor=(1, 0.5))
 
     plt.tight_layout()
-    plt.savefig(
+    figure_path_shadow = figure_name
+    if folder_figures is not None:
+        plt.savefig(
         os.path.join(folder_figures, figure_name),
         bbox_inches="tight",
         pad_inches=0.1,
-    )
-    plt.close()
+        )
+        plt.close()
+        figure_path_shadow = figure_name.replace(".png", "_shadow.png")
+
+    else:
+        plt.show()
     if do_the_shadow:
         make_all_metric_plot(
             scores_df,
@@ -218,7 +224,7 @@ def make_all_metric_plot(
             max_n_cols=max_n_cols,
             figsize=figsize,
             folder_figures=folder_figures,
-            figure_name=figure_name.replace(".png", "_shadow.png"),
+            figure_name=figure_path_shadow,
             limit_by=limit_by,
             shadow_plot=True,
         )
@@ -244,14 +250,14 @@ def make_metric_plot(
     ):  # If epochs is not a thing, or if you want the "shadow" on the epoch axis
         # scores_df.set_index(column_to_group)[metric].plot.bar(ax=ax)
         if metric in [
-            "rmse",
-            "abs error",
-            "alloc missing",
-            "alloc surplus",
-            "benchmark abs error",
+            "RMSE",
+            "SAE",
+            "AllocF",
+            "AllocD",
+            "benchmark SAE",
             "benchmark rmse",
-            "benchmark alloc missing",
-            "benchmark alloc surplus",
+            "benchmark AllocF",
+            "benchmark AllocD",
         ]:
             scores_df.groupby(column_to_group).min()[metric].plot.bar(ax=ax)
         else:
@@ -265,17 +271,25 @@ def make_metric_plot(
         ax.axhline(
             y=scores_df[benchmark_metric].iloc[0], color="r", linestyle="--"
         )
+    if "GPD" in metric:
+        ax.set_ylim([-20, 100])
 
     if ylimit:
         ax.set_ylim([ylimit_down, ylimit])
 
     plt.tight_layout()
-    plt.savefig(
-        figure_path,
-        bbox_inches="tight",
-    )
-    plt.close()
+    if figure_path is not None:
+        plt.savefig(
+            figure_path,
+            bbox_inches="tight",
+        )
+        plt.close()
+    else:
+        plt.show()
     if do_the_shadow:
+        figure_path_shadow=figure_path
+        if figure_path is not None:
+            figure_path_shadow = figure_path.replace(".png", "_shadow.png")
         make_metric_plot(
             scores_df,
             metric,
@@ -285,7 +299,7 @@ def make_metric_plot(
             column_to_group,
             ylimit,
             ylimit_down,
-            figure_path.replace(".png", "_shadow.png"),
+            figure_path_shadow,
             shadow_plot=True,
         )
 
@@ -295,6 +309,7 @@ def make_experiment_plot(
     folder_figures=None,
     metrics_to_sort=None,
     column_to_group=None,
+    column_to_index="epoch",
     **kwargs,
 ):
     column_to_group = column_to_group or ["name"]
@@ -304,7 +319,7 @@ def make_experiment_plot(
     scores_df = scores_df.sort_values(metrics_to_sort)
 
     all_metrics = [
-        f for f in scores_df.columns if f not in [column_to_group, "epoch"]
+        f for f in scores_df.columns if f not in [column_to_group, "epoch", "loss"]
     ]
     prediction_metrics = [f for f in all_metrics if "benchmark" not in f]
     prediction_metrics = [
@@ -326,13 +341,16 @@ def make_experiment_plot(
         else:
             bench_metric = bench_metric[0]
             benchmark_score[metric] = scores_df[bench_metric].iloc[0]
-
-        figure_path = os.path.join(folder_figures, f"{metric}_results.png")
+        if folder_figures is not None:
+            figure_path = os.path.join(folder_figures, f"{metric}_results.png")
+        else:
+            figure_path=None
 
         make_metric_plot(
             scores_df,
             metric,
             bench_metric,
+            column_to_index=column_to_index,
             column_to_group=column_to_group,
             figure_path=figure_path,
             **kwargs,
@@ -342,7 +360,7 @@ def make_experiment_plot(
         scores_df,
         prediction_metrics,
         benchmark_score=benchmark_score,
-        column_to_index="epoch",
+        column_to_index=column_to_index,
         column_to_group=column_to_group,
         max_n_cols=2,
         figsize=(10, 10),
@@ -352,9 +370,9 @@ def make_experiment_plot(
     )
     make_all_metric_plot(
         scores_df,
-        ["alloc missing", "alloc surplus"],
+        ["AllocF", "AllocD"],
         benchmark_score=benchmark_score,
-        column_to_index="epoch",
+        column_to_index=column_to_index,
         column_to_group=column_to_group,
         max_n_cols=2,
         figsize=(10, 10),
@@ -365,20 +383,19 @@ def make_experiment_plot(
     make_all_metric_plot(
         scores_df,
         [
-            "EPEA F",
-            "EPEA D",
-            "EPEA",
-            "EPEA norm",
-            "EPEA Bench",
-            "EPEA Bench norm",
+            "GPD F",
+            "GPD D",
+            "GPD",
+            "GPD norm",
+            "GPD Positivo",
         ],
         benchmark_score=benchmark_score,
-        column_to_index="epoch",
+        column_to_index=column_to_index,
         column_to_group=column_to_group,
         max_n_cols=2,
         figsize=(10, 10),
         folder_figures=folder_figures,
-        figure_name="EPEAS.png",
+        figure_name="GPDS.png",
         limit_by="",
     )
 
@@ -387,7 +404,7 @@ def make_tex_table_best_result(
     exp_results,
     path_to_save,
     exp_col="name",
-    metric="EPEA norm2",
+    metric="GPD norm2",
     metrics_to_keep=None,
 ):
     # path_schema_tex = os.path.join(freq_folder_to_save_validation, "experiment_results.tex")
@@ -399,23 +416,21 @@ def make_tex_table_best_result(
     result_df = result_df.sort_values(metric)
     if metrics_to_keep is None:
         metrics_to_keep = [
-            "rmse",
-            "abs error",
-            "alloc missing",
-            "alloc surplus",
-            "EPEA F",
-            "EPEA D",
-            "EPEA",
-            "EPEA norm",
-            "EPEA Bench",
-            "EPEA Bench norm",
-            "EPEA norm2",
-            "optimal percentage",
-            "better percentage",
-            "benchmark abs error",
+            "RMSE",
+            "SAE",
+            "AllocF",
+            "AllocD",
+            "GPD F",
+            "GPD D",
+            "GPD",
+            "GPD norm",
+            "GPD Positivo",
+            "GPD norm2",
+            "OptPer",
+            "benchmark SAE",
             "benchmark rmse",
-            "benchmark alloc missing",
-            "benchmark alloc surplus",
+            "benchmark AllocF",
+            "benchmark AllocD",
         ]
     metrics_to_keep = [
         f for f in metrics_to_keep if f not in [*exp_col, metric]

@@ -177,7 +177,7 @@ def metric_scores_default(name, predictions, truth_data, benchmark=False):
     return {
         "erro_abs_sum": [erro_abs_sum],
         "mse": [mse],
-        "rmse": [rmse],
+        "RMSE": [rmse],
     }
 
 

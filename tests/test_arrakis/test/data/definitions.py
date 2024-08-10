@@ -139,7 +139,7 @@ def process_benchmark_fn(
     new_benchmark_scores = benchmark_scores.copy()
     # TODO: handle keys to remove in some way
     for key in benchmark_scores.keys():
-        if "EPEA" in key:
+        if "GPD" in key:
             new_benchmark_scores.pop(key)
         if "percentage" in key:
             new_benchmark_scores.pop(key)

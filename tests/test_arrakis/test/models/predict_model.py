@@ -112,19 +112,17 @@ def prediction_score(test_dataset_Y, predictions, test_allocation, model_name):
 
     predict_score = {
         "name": model_name,
-        "rmse": rmse,
-        "abs error": erro_abs_sum,
-        "alloc missing": alloc_missing_sum,
-        "alloc surplus": alloc_surplus_sum,
-        "EPEA_F": bscore_m,
-        "EPEA_D": bscore_s,
-        "EPEA": EPEA,
-        "EPEA_norm": EPEA_norm,
-        "EPEA_Bench": EPEA_Bench,
-        "EPEA_Bench_norm": EPEA_Bench_norm,
-        "EPEA_norm2": EPEA_norm2,
-        "optimal percentage": optimal_percentage,
-        "better percentage": beter_percentage,
+        "RMSE": rmse,
+        "SAE": erro_abs_sum,
+        "AllocF": alloc_missing_sum,
+        "AllocD": alloc_surplus_sum,
+        "GPD F": bscore_m,
+        "GPD D": bscore_s,
+        "GPD": EPEA,
+        "GPD norm": EPEA_norm,
+        "GPD Positivo": EPEA_Bench,
+        "GPD norm2": EPEA_norm2,
+        "OptPer": optimal_percentage,
     }
 
     return predict_score

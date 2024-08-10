@@ -10,7 +10,7 @@ from muaddib.experiments.default_functions import (
 from muaddib.models.model_handler import ModelHandler
 from muaddib.muaddib import ShaiHulud
 from muaddib.shaihulud_utils import AdvanceLossHandler
-
+from keras.losses import Loss
 
 class ExperimentHandler(ShaiHulud):
     listing_conf_properties = ["model_handlers", "experiments"]
@@ -25,7 +25,7 @@ class ExperimentHandler(ShaiHulud):
         "write_report_fn",
     ]
     columns_model_args = [
-        "arch",
+        "archs",
         "activation_middle",
         "activation_end",
         "x_timesteps",
@@ -310,7 +310,8 @@ class ExperimentHandler(ShaiHulud):
             print("****************************************************")
         print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
 
-    def validate_experiment(self, **kwargs):
+    def validate_experiment(self, just_experiment=True,**kwargs):
+        # What might be doing slow is somwhere here
         exp_results_path = os.path.join(
             self.work_folder, "experiment_score.csv"
         )
@@ -318,6 +319,7 @@ class ExperimentHandler(ShaiHulud):
             exp_results = pd.read_csv(exp_results_path)
         else:
             exp_results = pd.DataFrame()
+        used_model_handlers=set()
         for exp in self.experiments.keys():
             # Check for model inference results and does the inference if not done
             if "name" in exp_results:
@@ -327,6 +329,7 @@ class ExperimentHandler(ShaiHulud):
                 saved_exp_score = None
                 num_exps = 0
             model_handler_name = self.experiments[exp]["model_handler_name"]
+            used_model_handlers.add(model_handler_name)
             experiment_epochs = self.model_handlers[model_handler_name].epochs
             if num_exps < experiment_epochs:
                 # ##########
@@ -343,6 +346,26 @@ class ExperimentHandler(ShaiHulud):
         exp_results = exp_results.drop_duplicates(["name", "epoch"])
         exp_results = exp_results.reset_index(drop=True)
         exp_results.to_csv(exp_results_path, index=False)
+        used_model_handlers=list(used_model_handlers)
+        if just_experiment:
+            for exp_col in exp_results.columns:
+                if exp_col not in self.columns_model_args:
+                    continue
+                if exp_col in self.exp_col:
+                    continue
+                for model_handler_name in used_model_handlers:
+                    variable_in_exp = getattr(self.model_handlers[model_handler_name], exp_col, None)
+                    if variable_in_exp is not None:
+                        if isinstance(variable_in_exp, list):
+                            if len(variable_in_exp)!=1:
+                                continue
+                            variable_in_exp = variable_in_exp[0]
+                        if isinstance(variable_in_exp, Loss):
+                            variable_in_exp = "".join([f[0] for f in variable_in_exp.name.split("_")])
+                        if len(exp_results[exp_results[exp_col]==variable_in_exp])==0:
+                            print("gggggg")
+                        exp_results=exp_results[exp_results[exp_col]==variable_in_exp]
+
         return exp_results
 
     def create_experiment_validation_data(self, exp_results, biggest=True):
@@ -431,7 +454,7 @@ class ExperimentHandler(ShaiHulud):
         self.create_experiment_validation_data(exp_results, biggest=biggest)
         self.save()
 
-    def write_report(self, exp_results=None, **kwargs):
+    def write_report(self, exp_results=None,folder_to_add=None, column_to_group=None,**kwargs):
         if exp_results is None:
             exp_results = self.validate_experiment()
 
@@ -439,6 +462,8 @@ class ExperimentHandler(ShaiHulud):
             "folder_figures",
             self.work_folder.replace("/experiment/", "/reports/"),
         )
+        if folder_to_add is not None:
+            folder_figures=os.path.join(folder_figures, folder_to_add)
 
         # limit_by = kwargs.pop("limit_by", "benchmark")
         # metrics_to_check = kwargs.pop("metrics_to_check", None)
@@ -469,10 +494,11 @@ class ExperimentHandler(ShaiHulud):
                 + self.exp_col,
             ]
         ]
+        column_to_group = column_to_group or self.exp_col
         self.write_report_fn(
             exp_results,
             folder_figures=folder_figures,
-            column_to_group=self.exp_col,
+            column_to_group=column_to_group,
             **kwargs,
         )
 
@@ -761,7 +787,7 @@ class ExperimentHandler(ShaiHulud):
 #             ]
 #             exp_count = kwargs.pop("exp_count", None)
 #             self.best_case, self.best_result = result_validation_fn(
-#                 exp_results, "rmse", **kwargs
+#                 exp_results, "RMSE", **kwargs
 #             )
 
 #         self.best_exp = self.experiments[self.best_case.name.item()]
@@ -894,11 +920,17 @@ class ExperimentFactory:
                 previous_experiment = previous_experiment_dict.get(
                     target_project, None
                 )
+                kwargs_to_use = {}
+                for key, value in kwargs.items():
+                    if isinstance(value, dict):
+                        kwargs_to_use.update({key:value[target_project]})
+                    else:
+                        kwargs_to_use.update({key:value})
                 experiment_handles = ExperimentHandler(
                     target_variable=target_variable,
                     data_manager=data_manager,
                     previous_experiment=previous_experiment,
-                    **kwargs,
+                    **kwargs_to_use,
                 )
 
                 experiment_dict[target_project] = experiment_handles
