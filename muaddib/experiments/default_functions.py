@@ -36,6 +36,7 @@ def make_all_metric_plot(
     limit_by="",
     shadow_plot=False,
     validation_metric=None,
+    show_values=True,
 ):
     shadow_plot = scores_df[column_to_index].max() <= 1 or shadow_plot
     do_the_shadow = False
@@ -121,16 +122,18 @@ def make_all_metric_plot(
             rows_df = scores_df.loc[opt_indices]
             rows_df=rows_df.set_index(column_to_group)
             rows_df[met].plot.bar(ax=ax)
-            for p in ax.patches:
-                width = p.get_width()       # get bar width
-                height = p.get_height()     # get bar height
-                height_bar=height
-                if height_bar<0:
-                    height_bar=0
-                x, y = p.get_xy()           # bottom left point of the bar
-                if y<0:
-                    y=0 
-                ax.annotate(f'{height:.2f}', (x + width / 2, y + height_bar), ha='center', va='bottom')
+            ax.set_xlabel("-".join(column_to_group))
+            if show_values:
+                for p in ax.patches:
+                    width = p.get_width()       # get bar width
+                    height = p.get_height()     # get bar height
+                    height_bar=height
+                    if height_bar<0:
+                        height_bar=0
+                    x, y = p.get_xy()           # bottom left point of the bar
+                    if y<0:
+                        y=0 
+                    ax.annotate(f'{height:.2f}', (x + width / 2, y + height_bar), ha='center', va='bottom')
 
 
         else:
@@ -138,6 +141,8 @@ def make_all_metric_plot(
                 column_to_group
             )[met].plot(ax=ax)
             do_the_shadow = True
+            x_label_name = x_label_name or column_to_index.capitalize()
+            np.array(axes).flatten()[i].set_xlabel(x_label_name)
 
         # Does not work for
         # scores_df.set_index(column_to_index).sort_index().groupby(column_to_group)[met].plot(ax=ax, color=color, label=label)
@@ -169,8 +174,6 @@ def make_all_metric_plot(
                     ".png", f"_limit_by_{limit_by}.png"
                 )
 
-        x_label_name = x_label_name or column_to_index.capitalize()
-        np.array(axes).flatten()[i].set_xlabel(x_label_name)
 
         # TODO: future generalize this to get from some datestructure with the units and stuff
         ylabel = "MWh"
@@ -243,6 +246,7 @@ def make_all_metric_plot(
             limit_by=limit_by,
             shadow_plot=True,
             validation_metric=validation_metric,
+            show_values=show_values,
         )
 
 
@@ -258,6 +262,7 @@ def make_metric_plot(
     figure_path="experiment_figure.png",
     shadow_plot=False,
     validation_metric=None,
+    show_values=True,
 ):
     do_the_shadow = False
     fig, ax = plt.subplots(figsize=figsize)
@@ -281,16 +286,18 @@ def make_metric_plot(
         rows_df = scores_df.loc[opt_indices]
         rows_df=rows_df.set_index(column_to_group)
         rows_df[metric].plot.bar(ax=ax)
-        for p in ax.patches:
-            width = p.get_width()       # get bar width
-            height = p.get_height()     # get bar height
-            height_bar=height
-            if height_bar<0:
-                height_bar=0
-            x, y = p.get_xy()           # bottom left point of the bar
-            if y<0:
-                y=0 
-            ax.annotate(f'{height:.2f}', (x + width / 2, y + height_bar), ha='center', va='bottom')
+        ax.set_xlabel("-".join(column_to_group))
+        if show_values:
+            for p in ax.patches:
+                width = p.get_width()       # get bar width
+                height = p.get_height()     # get bar height
+                height_bar=height
+                if height_bar<0:
+                    height_bar=0
+                x, y = p.get_xy()           # bottom left point of the bar
+                if y<0:
+                    y=0 
+                ax.annotate(f'{height:.2f}', (x + width / 2, y + height_bar), ha='center', va='bottom')
 
     else:
         scores_df.set_index(column_to_index).sort_index().groupby(
@@ -332,6 +339,7 @@ def make_metric_plot(
             figure_path_shadow,
             shadow_plot=True,
             validation_metric=validation_metric,
+            show_values=show_values,
         )
 
 
@@ -342,6 +350,7 @@ def make_experiment_plot(
     column_to_group=None,
     column_to_index="epoch",
     validation_metric=None,
+    show_values=True,
     **kwargs,
 ):
     column_to_group = column_to_group or ["name"]
@@ -386,6 +395,7 @@ def make_experiment_plot(
             column_to_group=column_to_group,
             figure_path=figure_path,
             validation_metric=validation_metric,
+            show_values=show_values,
             **kwargs,
         )
 
@@ -401,6 +411,7 @@ def make_experiment_plot(
         folder_figures=folder_figures,
         figure_name="experiment_results.png",
         limit_by="",
+        show_values=show_values,
     )
     make_all_metric_plot(
         scores_df,
@@ -410,10 +421,11 @@ def make_experiment_plot(
         column_to_group=column_to_group,
         validation_metric=validation_metric,
         max_n_cols=2,
-        figsize=(10, 10),
+        figsize=(10, 5),
         folder_figures=folder_figures,
         figure_name="allocs_results.png",
         limit_by="",
+        show_values=show_values,
     )
     make_all_metric_plot(
         scores_df,
@@ -433,6 +445,7 @@ def make_experiment_plot(
         folder_figures=folder_figures,
         figure_name="GPDS.png",
         limit_by="",
+        show_values=show_values,
     )
 
 
