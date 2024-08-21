@@ -2,15 +2,16 @@ import os
 
 import numpy as np
 import pandas as pd
-
+import glob
 from muaddib.experiments.default_functions import (
     make_experiment_plot,
     make_tex_table_best_result,
 )
 from muaddib.models.model_handler import ModelHandler
 from muaddib.muaddib import ShaiHulud
-from muaddib.shaihulud_utils import AdvanceLossHandler
+from muaddib.shaihulud_utils import AdvanceLossHandler,write_dict_to_file
 from keras.losses import Loss
+import shutil
 
 class ExperimentHandler(ShaiHulud):
     listing_conf_properties = ["model_handlers", "experiments"]
@@ -319,6 +320,19 @@ class ExperimentHandler(ShaiHulud):
             exp_results = pd.read_csv(exp_results_path)
         else:
             exp_results = pd.DataFrame()
+
+        # if not just_experiment:
+        #     all_cvs_on_lab = glob.glob(f"{os.path.join(self.project_manager.trained_models_folder, self.target_variable,self.data_manager.name )}/**/**predictions_score.csv", recursive=True)
+        #     for model_handler in self.model_handlers.values():
+
+        #         if self.exp_col in self.name_builder_position_dict:
+        #             exp_col_name_position = self.name_builder_position_dict[self.exp_col]
+
+        #             os.path.basename(os.path.dirname(all_cvs_on_lab[0]))
+        #             csvs_for_exp=[]
+                    
+        #     print("")
+
         used_model_handlers=set()
         for exp in self.experiments.keys():
             # Check for model inference results and does the inference if not done
@@ -363,12 +377,14 @@ class ExperimentHandler(ShaiHulud):
                         if isinstance(variable_in_exp, Loss):
                             variable_in_exp = "".join([f[0] for f in variable_in_exp.name.split("_")])
                         if len(exp_results[exp_results[exp_col]==variable_in_exp])==0:
+                            continue
                             print("gggggg")
                         exp_results=exp_results[exp_results[exp_col]==variable_in_exp]
 
         return exp_results
 
     def create_experiment_validation_data(self, exp_results, biggest=True):
+        exp_results = exp_results.reset_index(drop=True)
         exp_prediction_validation_path = os.path.join(
             self.work_folder,
             f"prediction_validation_{self.validation_target}.npz",
@@ -421,18 +437,46 @@ class ExperimentHandler(ShaiHulud):
     def validate_results(
         self, exp_results, validation_target=None, biggest=True
     ):
+        # TODO: better naming for the validates both
         validation_target = validation_target or self.validation_target
-        exp_results = exp_results[
-            exp_results["name"].isin(self.experiments.keys())
-        ]
+        if self.final_experiment:
+            final_model_folder = os.path.join(
+                self.project_manager.final_models_folder,
+                self.target_variable,
+                self.data_manager.name,
+                self.validation_target,
+            )
+            full_lab_results_csv_path = os.path.join(os.path.dirname(final_model_folder), "results.csv")
+            os.makedirs(os.path.dirname(full_lab_results_csv_path), exist_ok=True)
+            if os.path.exists(full_lab_results_csv_path):
+                exp_results = pd.concat([pd.read_csv(full_lab_results_csv_path), exp_results])
+                exp_results=exp_results.drop_duplicates()
+            all_cvs_on_lab = glob.glob(f"{os.path.join(self.project_manager.trained_models_folder, self.target_variable,self.data_manager.name )}/**/**predictions_score.csv", recursive=True)
+            all_cvs_on_lab=[f for f in all_cvs_on_lab if not exp_results["name"].str.contains(f.split("/")[-2]).any()]
+            if len(all_cvs_on_lab)>0:
+                for lab_csv in all_cvs_on_lab:
+                    exp_results=pd.concat([exp_results,pd.read_csv(lab_csv)]).reset_index(drop=True)
+                if "archs.1" in exp_results.columns:
+                    exp_results = exp_results.drop('archs.1', axis=1)
+                exp_results=exp_results.drop_duplicates()
+                exp_results.reset_index(drop=True).to_csv(full_lab_results_csv_path, index=False)
+
+        else:
+            exp_results = exp_results[
+                exp_results["name"].isin(self.experiments.keys())
+            ]
+        exp_results = exp_results.reset_index(drop=True)
+
         if biggest:
             best_ind = exp_results[validation_target].nlargest(1).index
         else:
             best_ind = exp_results[validation_target].nsmallest(1).index
         best_name = exp_results.loc[best_ind].name.item()
         best_epoch = exp_results.loc[best_ind].epoch.item()
-        model_handler_name = self.experiments[best_name]["model_handler_name"]
+        model_handler_name = ModelHandler.return_child_by_arch(exp_results.loc[best_ind]["archs"].item())
         # best_name=self.best_case
+        model_conf=None # TODO: if none fecth from whaterver exp
+        exp_conf = None
         for mod_conf in self.model_handlers[
             model_handler_name
         ].models_confs.keys():
@@ -442,17 +486,49 @@ class ExperimentHandler(ShaiHulud):
                 model_conf = self.model_handlers[
                     model_handler_name
                 ].models_confs[model_conf_name]
+                if best_name in self.model_handlers[model_handler_name].exp_cases:
+                    exp_conf = self.model_handlers[
+                        model_handler_name
+                    ].exp_cases[best_name]
         self.best_case = {
             "name": best_name,
             "model_handler_name": model_handler_name,
             "model_conf": model_conf,
-            "exp_conf": self.model_handlers[model_handler_name].exp_cases[
-                best_name
-            ],
+            "exp_conf": exp_conf,
             "epoch": best_epoch,
         }
         self.create_experiment_validation_data(exp_results, biggest=biggest)
         self.save()
+
+        if self.final_experiment:
+            best_model_folder = os.path.join(
+                    self.model_handlers[model_handler_name].work_folder,
+                    best_name,
+                )
+            best_model_path = os.path.join(best_model_folder, "freq_saves", f"{best_epoch}.keras")
+            prediction_npz = os.path.join(best_model_folder, "predictions.npz")
+
+
+
+            final_model_path = os.path.join(final_model_folder, f"best_model.keras")
+            final_model_json = os.path.join(final_model_folder, f"best_model.json")
+            final_model_npz = os.path.join(final_model_folder, f"best_model.npz")
+            best_case_json  ={**self.best_case}
+            best_case_json[validation_target] = exp_results[validation_target].loc[best_ind].item()
+            best_case_json["metrics"] = exp_results.loc[best_ind].iloc[0].to_dict()
+            if best_case_json["exp_conf"] is not None:
+                if "loss" in best_case_json["exp_conf"]:
+                    best_case_json["exp_conf"]["loss"]=best_case_json["exp_conf"]["loss"].name
+
+            os.makedirs(os.path.dirname(final_model_path), exist_ok=True)
+            write_dict_to_file(best_case_json, final_model_json)
+
+            shutil.copy(best_model_path, final_model_path)
+            shutil.copy(prediction_npz, final_model_npz)
+
+        
+        return exp_results
+
 
     def write_report(self, exp_results=None,folder_to_add=None, column_to_group=None,**kwargs):
         if exp_results is None:
@@ -491,16 +567,29 @@ class ExperimentHandler(ShaiHulud):
                     for f in exp_results.columns
                     if f not in self.columns_model_args
                 ]
-                + self.exp_col,
+                + self.exp_col
             ]
         ]
+        exp_results = exp_results.T.drop_duplicates().T
         column_to_group = column_to_group or self.exp_col
-        self.write_report_fn(
-            exp_results,
-            folder_figures=folder_figures,
-            column_to_group=column_to_group,
-            **kwargs,
-        )
+        
+        if len([f for f in glob.glob(f"{folder_figures}/**") if f.endswith("png")])==0:
+            self.write_report_fn(
+                exp_results,
+                folder_figures=folder_figures,
+                column_to_group=column_to_group,
+                validation_metric=None,
+                **kwargs,
+            )
+        if len(glob.glob(f"{os.path.join(folder_figures, self.validation_target)}/**"))==0:
+            os.makedirs(os.path.join(folder_figures, self.validation_target), exist_ok=True)
+            self.write_report_fn(
+                exp_results,
+                folder_figures=os.path.join(folder_figures, self.validation_target),
+                column_to_group=column_to_group,
+                validation_metric=self.validation_target,
+                **kwargs,
+            )
 
     def run_experiment(
         self,
@@ -516,7 +605,7 @@ class ExperimentHandler(ShaiHulud):
 
         self.train_experiment(**train_args)
         results = self.validate_experiment(**validate_experiment_args)
-        self.validate_results(results, **validate_results_args)
+        results = self.validate_results(results, **validate_results_args)
         self.write_report(results, **write_report_args)
 
 

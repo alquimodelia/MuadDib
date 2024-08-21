@@ -129,6 +129,23 @@ class KerasModelHandler(BaseModelHandler):
     model_archs = ["CNN", "LSTM", "UNET", "Transformer", "Dense"]
     class_args = ["epochs", "archs", "callbacks", "metric_scores_fn"]
 
+    name_builder_position_dict={
+            "archs": 0,
+            "activation_middle": 1,
+            "activation_end": 2,
+            "x_timesteps": 3,
+            "y_timesteps": 4,
+            "filters": 5,
+            "features": 6,
+            "classes": 7,
+            "optimizer": 8,
+            "loss": 9,
+            "batch": 10,
+            "weights": 11,
+    }
+
+
+
     def assert_arch_in_class(arch):
         for ar in [f.lower() for f in KerasModelHandler.model_archs]:
             if ar in arch.lower():
@@ -403,7 +420,14 @@ class KerasModelHandler(BaseModelHandler):
         prediction_score_path = trained_folder.replace(
             "freq_saves", "predictions_score.csv"
         )
-        if old_score is not None:
+        old_score_none = old_score is not None
+        old_score_empty=False
+        if old_score_none:
+            old_score_empty = len(old_score)==0
+        else:
+            old_score_empty=True
+        old_score_not_empty = not old_score_empty
+        if old_score_not_empty:
             model_scores = old_score
         elif os.path.exists(prediction_score_path):
             model_scores = pd.read_csv(prediction_score_path)
@@ -530,6 +554,20 @@ class StatsModelHandler(BaseModelHandler):
     model_archs = ["AR", "MA", "ARMA", "ARIMA", "SARIMA"]
     fit_kwargs = []
     class_args = ["archs", "metric_scores_fn"]
+
+    name_builder_position_dict={
+            "archs": 0,
+            "p": 1,
+            "d": 2,
+            "q": 3,
+            "P": 4,
+            "D": 5,
+            "Q": 6,
+            "s": 7,
+            "trend": 8,
+    }
+
+
 
     def assert_arch_in_class(arch):
         if arch.lower() in [f.lower() for f in StatsModelHandler.model_archs]:
@@ -829,6 +867,7 @@ class ModelHandler(ShaiHulud):
     def __init__(self):
         pass
 
+
     def __new__(cls, model_backend: str, **kwargs):
         # Dynamically create an instance of the specified model class
         model_backend = model_backend.lower()
@@ -861,6 +900,7 @@ class ModelHandler(ShaiHulud):
         ModelHandler.registry[
             constructor.__name__.lower().replace("handler", "")
         ] = constructor
+
 
     @classmethod
     def create_model_handlers(cls, **kwargs):
@@ -909,6 +949,16 @@ class ModelHandler(ShaiHulud):
                 **model_handler_kwargs,
             )
         return model_handlers_to_return
+
+    @classmethod
+    def return_child_by_arch(cls, arch):
+        for (
+            model_handler_name,
+            model_handler_cls,
+        ) in ModelHandler.registry.items():
+            if model_handler_cls.assert_arch_in_class(arch):
+                return model_handler_name
+
 
 
 ModelHandler.register(KerasModelHandler)

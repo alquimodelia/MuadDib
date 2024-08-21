@@ -6,7 +6,7 @@ import os
 
 import keras
 import numpy as np
-
+from alquitable.advanced_losses import AdvanceLoss
 
 def save_scores(
     test_dataset_Y,
@@ -258,24 +258,45 @@ class AdvanceLossHandler:
 
     def get_advance_loss(self):
         loss = self.loss
-        module_name = loss.__module__
-        advance_loss = loss.__class__.__name__.split(".")[-1]
-        module = importlib.import_module(module_name)
-        loss_func = getattr(module, advance_loss)
-        losses_to_use = loss_func
-        if "alquitable.advanced_losses" in module_name:
-            loss_args = loss.get_config()
-            previous_sec_loss = loss_args.pop("loss_to_use")
-            loss_name = loss_args.pop("name")
-            loss_name = loss_name.replace(f"_{previous_sec_loss.name}", "")
-            losses_to_use = [
-                loss_func(loss_to_use=f, name=loss_name, **loss_args)
-                for f in self.losses_to_use
-            ]
+        if isinstance(self.loss,AdvanceLoss):
+            module_name = loss.__module__
+            advance_loss = loss.__class__.__name__.split(".")[-1]
+            module = importlib.import_module(module_name)
+            loss_func = getattr(module, advance_loss)
+            losses_to_use = loss_func
+            if "alquitable.advanced_losses" in module_name:
+                loss_args = loss.get_config()
+                previous_sec_loss = loss_args.pop("loss_to_use")
+                loss_name = loss_args.pop("name")
+                loss_name = loss_name.replace(f"_{previous_sec_loss.name}", "")
+                losses_to_use = [
+                    loss_func(loss_to_use=f, name=loss_name, **loss_args)
+                    for f in self.losses_to_use
+                ]
+        else:
+            losses_to_use = []
+            for advance_loss in self.losses_to_use:
+                loss_args = advance_loss.get_config()
+                previous_sec_loss = loss_args.pop("loss_to_use")
+                loss_name = loss_args.pop("name")
+                loss_name = loss_name.replace(f"_{previous_sec_loss.name}", "")
+
+                module_name = advance_loss.__module__
+                advance_loss_name = advance_loss.__class__.__name__.split(".")[-1]
+                module = importlib.import_module(module_name)
+                loss_func = getattr(module, advance_loss_name)
+                if "alquitable.advanced_losses" in module_name:
+                    losses_to_use.append(loss_func(loss_to_use=loss, name=loss_name, **loss_args))
+
+
         return losses_to_use
 
     def __iter__(self):
         return iter(self.get_advance_loss())
+
+
+
+
 
 
 def expand_all_alternatives(parameters_to_list):

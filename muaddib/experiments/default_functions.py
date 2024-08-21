@@ -35,6 +35,7 @@ def make_all_metric_plot(
     figure_name="experiment_results.png",
     limit_by="",
     shadow_plot=False,
+    validation_metric=None,
 ):
     shadow_plot = scores_df[column_to_index].max() <= 1 or shadow_plot
     do_the_shadow = False
@@ -67,9 +68,7 @@ def make_all_metric_plot(
     if len(column_to_group) == 1:
         list_of_labels = scores_df[column_to_group[0]].unique().tolist()
     else:
-        list_of_labels = scores_df[column_to_group].drop_duplicates(
-            inplace=True
-        )
+        list_of_labels = scores_df[column_to_group].drop_duplicates()
         column_to_group_name = "".join(column_to_group)
         list_of_labels[column_to_group_name] = list_of_labels[
             column_to_group[0]
@@ -105,7 +104,8 @@ def make_all_metric_plot(
         # Get the color for the label
         # color = label_color_mapping[label]
         if shadow_plot:
-            if met in [
+            validation_metric_to_use = validation_metric or met
+            if validation_metric_to_use in [
                 "RMSE",
                 "SAE",
                 "AllocF",
@@ -115,9 +115,24 @@ def make_all_metric_plot(
                 "benchmark AllocF",
                 "benchmark AllocD",
             ]:
-                scores_df.groupby(column_to_group).min()[met].plot.bar(ax=ax)
+                opt_indices = scores_df.groupby(column_to_group)[validation_metric_to_use].idxmin()
             else:
-                scores_df.groupby(column_to_group).max()[met].plot.bar(ax=ax)
+                opt_indices = scores_df.groupby(column_to_group)[validation_metric_to_use].idxmax()
+            rows_df = scores_df.loc[opt_indices]
+            rows_df=rows_df.set_index(column_to_group)
+            rows_df[met].plot.bar(ax=ax)
+            for p in ax.patches:
+                width = p.get_width()       # get bar width
+                height = p.get_height()     # get bar height
+                height_bar=height
+                if height_bar<0:
+                    height_bar=0
+                x, y = p.get_xy()           # bottom left point of the bar
+                if y<0:
+                    y=0 
+                ax.annotate(f'{height:.2f}', (x + width / 2, y + height_bar), ha='center', va='bottom')
+
+
         else:
             scores_df.set_index(column_to_index).sort_index().groupby(
                 column_to_group
@@ -227,6 +242,7 @@ def make_all_metric_plot(
             figure_name=figure_path_shadow,
             limit_by=limit_by,
             shadow_plot=True,
+            validation_metric=validation_metric,
         )
 
 
@@ -241,15 +257,15 @@ def make_metric_plot(
     ylimit_down=None,
     figure_path="experiment_figure.png",
     shadow_plot=False,
+    validation_metric=None,
 ):
     do_the_shadow = False
     fig, ax = plt.subplots(figsize=figsize)
     shadow_plot = scores_df[column_to_index].max() <= 1 or shadow_plot
-    if (
-        shadow_plot
-    ):  # If epochs is not a thing, or if you want the "shadow" on the epoch axis
-        # scores_df.set_index(column_to_group)[metric].plot.bar(ax=ax)
-        if metric in [
+    # If epochs is not a thing, or if you want the "shadow" on the epoch axis
+    if (shadow_plot):  
+        validation_metric_to_use = validation_metric or metric
+        if validation_metric_to_use in [
             "RMSE",
             "SAE",
             "AllocF",
@@ -259,9 +275,23 @@ def make_metric_plot(
             "benchmark AllocF",
             "benchmark AllocD",
         ]:
-            scores_df.groupby(column_to_group).min()[metric].plot.bar(ax=ax)
+            opt_indices = scores_df.groupby(column_to_group)[validation_metric_to_use].idxmin()
         else:
-            scores_df.groupby(column_to_group).max()[metric].plot.bar(ax=ax)
+            opt_indices = scores_df.groupby(column_to_group)[validation_metric_to_use].idxmax()
+        rows_df = scores_df.loc[opt_indices]
+        rows_df=rows_df.set_index(column_to_group)
+        rows_df[metric].plot.bar(ax=ax)
+        for p in ax.patches:
+            width = p.get_width()       # get bar width
+            height = p.get_height()     # get bar height
+            height_bar=height
+            if height_bar<0:
+                height_bar=0
+            x, y = p.get_xy()           # bottom left point of the bar
+            if y<0:
+                y=0 
+            ax.annotate(f'{height:.2f}', (x + width / 2, y + height_bar), ha='center', va='bottom')
+
     else:
         scores_df.set_index(column_to_index).sort_index().groupby(
             column_to_group
@@ -301,6 +331,7 @@ def make_metric_plot(
             ylimit_down,
             figure_path_shadow,
             shadow_plot=True,
+            validation_metric=validation_metric,
         )
 
 
@@ -310,6 +341,7 @@ def make_experiment_plot(
     metrics_to_sort=None,
     column_to_group=None,
     column_to_index="epoch",
+    validation_metric=None,
     **kwargs,
 ):
     column_to_group = column_to_group or ["name"]
@@ -319,7 +351,7 @@ def make_experiment_plot(
     scores_df = scores_df.sort_values(metrics_to_sort)
 
     all_metrics = [
-        f for f in scores_df.columns if f not in [column_to_group, "epoch", "loss"]
+        f for f in scores_df.columns if f not in [*column_to_group, "epoch", "loss"]
     ]
     prediction_metrics = [f for f in all_metrics if "benchmark" not in f]
     prediction_metrics = [
@@ -353,6 +385,7 @@ def make_experiment_plot(
             column_to_index=column_to_index,
             column_to_group=column_to_group,
             figure_path=figure_path,
+            validation_metric=validation_metric,
             **kwargs,
         )
 
@@ -362,6 +395,7 @@ def make_experiment_plot(
         benchmark_score=benchmark_score,
         column_to_index=column_to_index,
         column_to_group=column_to_group,
+        validation_metric=validation_metric,
         max_n_cols=2,
         figsize=(10, 10),
         folder_figures=folder_figures,
@@ -374,6 +408,7 @@ def make_experiment_plot(
         benchmark_score=benchmark_score,
         column_to_index=column_to_index,
         column_to_group=column_to_group,
+        validation_metric=validation_metric,
         max_n_cols=2,
         figsize=(10, 10),
         folder_figures=folder_figures,
@@ -392,6 +427,7 @@ def make_experiment_plot(
         benchmark_score=benchmark_score,
         column_to_index=column_to_index,
         column_to_group=column_to_group,
+        validation_metric=validation_metric,
         max_n_cols=2,
         figsize=(10, 10),
         folder_figures=folder_figures,

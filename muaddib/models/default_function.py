@@ -124,7 +124,6 @@ def inference_model(
     benchmark_values = None
     prediction_file_dict = None
 
-    X, truth_data, _, _ = datamanager.validation_data(**validation_args)
     if os.path.exists(prediction_path):
         predictions_experiment = np.load(prediction_path)
         if prediction_name in predictions_experiment.keys():
@@ -143,6 +142,7 @@ def inference_model(
             benchmark = datamanager.benchmark_data(**bench_args)
 
     if predictions is None:
+        X, truth_data, _, _ = datamanager.validation_data(**validation_args)
         if model_type == "keras":
             predictions = get_keras_predictions(model_path, X)
         elif model_type == "statsmodel":
